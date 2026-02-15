@@ -1,0 +1,169 @@
+/// Barra de navegación inferior con efecto glassmorphism flotante.
+library;
+
+import 'dart:ui';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+/// Barra de navegación inferior flotante con transparencia líquida
+class CustomBottomNav extends StatelessWidget {
+  /// Crea una barra de navegación flotante con efecto glass
+  const CustomBottomNav({
+    required this.currentIndex,
+    required this.onIndexChanged,
+    super.key,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onIndexChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Espacio inferior según navegación Android (gestos vs botones)
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
+    final bottomMargin = bottomInset > 0 ? bottomInset + 4 : 12.0;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, bottomMargin),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            height: 66,
+            decoration: BoxDecoration(
+              // Fondo translúcido para efecto glass
+              color: isDark
+                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.92)
+                  : const Color(0xFFF4F7F2).withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.10)
+                    : Colors.black.withValues(alpha: 0.06),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
+                  blurRadius: 28,
+                  spreadRadius: -2,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                _NavItem(
+                  index: 0,
+                  currentIndex: currentIndex,
+                  icon: Icons.play_circle_outline_rounded,
+                  activeIcon: Icons.play_circle_rounded,
+                  color: const Color(0xFFE53935),
+                  onTap: onIndexChanged,
+                ),
+                _NavItem(
+                  index: 1,
+                  currentIndex: currentIndex,
+                  icon: Icons.slow_motion_video_outlined,
+                  activeIcon: Icons.slow_motion_video_rounded,
+                  color: const Color(0xFFFF6D00),
+                  onTap: onIndexChanged,
+                ),
+                _NavItem(
+                  index: 2,
+                  currentIndex: currentIndex,
+                  icon: Icons.music_note_outlined,
+                  activeIcon: Icons.music_note_rounded,
+                  color: const Color(0xFF1E88E5),
+                  onTap: onIndexChanged,
+                ),
+                _NavItem(
+                  index: 3,
+                  currentIndex: currentIndex,
+                  icon: Icons.video_library_outlined,
+                  activeIcon: Icons.video_library_rounded,
+                  color: const Color(0xFFFB8C00),
+                  onTap: onIndexChanged,
+                ),
+                _NavItem(
+                  index: 4,
+                  currentIndex: currentIndex,
+                  icon: Icons.settings_outlined,
+                  activeIcon: Icons.settings_rounded,
+                  color: const Color(0xFF78909C),
+                  onTap: onIndexChanged,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Item de navegación solo icono con pill animado
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.index,
+    required this.currentIndex,
+    required this.icon,
+    required this.activeIcon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final int index;
+  final int currentIndex;
+  final IconData icon;
+  final IconData activeIcon;
+  final Color color;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = currentIndex == index;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final inactiveColor = isDark
+        ? Colors.white.withValues(alpha: 0.55)
+        : Colors.black.withValues(alpha: 0.5);
+
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          // Vibración sutil al cambiar de pestaña
+          HapticFeedback.selectionClick();
+          onTap(index);
+        },
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+            width: isSelected ? 48 : 40,
+            height: isSelected ? 48 : 40,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? const Color(0xFF78909C).withValues(alpha: isDark ? 0.25 : 0.14)
+                  : Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                isSelected ? activeIcon : icon,
+                key: ValueKey(isSelected),
+                size: isSelected ? 30 : 27,
+                color: isSelected ? color : inactiveColor,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -23,9 +23,12 @@ ThemeData buildLightTheme() {
     brightness: Brightness.light,
     scaffoldBackgroundColor: const Color(0xFFF4F7F2),
     appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surface,
-      foregroundColor: scheme.onSurface,
+      backgroundColor: const Color(0xFFF4F7F2).withValues(alpha: 0.92),
+      foregroundColor: const Color(0xFF1B1B1B),
+      iconTheme: const IconThemeData(color: Color(0xFF1B1B1B)),
       elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
     ),
     cardTheme: CardThemeData(
       color: Colors.white,
@@ -51,9 +54,12 @@ ThemeData buildDarkTheme() {
     brightness: Brightness.dark,
     scaffoldBackgroundColor: const Color(0xFF121212),
     appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surface,
-      foregroundColor: scheme.onSurface,
+      backgroundColor: const Color(0xFF1A1A1A).withValues(alpha: 0.92),
+      foregroundColor: const Color(0xFFE8E8E8),
+      iconTheme: const IconThemeData(color: Color(0xFFE8E8E8)),
       elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
     ),
     cardTheme: CardThemeData(
       color: const Color(0xFF1E1E1E),

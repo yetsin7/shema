@@ -41,6 +41,7 @@ class S {
 
   // ===== DESCARGAS =====
   String get downloadTooltip => _isEs ? 'Descargar' : 'Download';
+  String get searchYouTube => _isEs ? 'Buscar en YouTube' : 'Search YouTube';
   String get downloadSettingsTooltip =>
       _isEs ? 'Configurar descargas' : 'Download settings';
   String get backTooltip => _isEs ? 'Volver atrÃ¡s' : 'Go back';
@@ -107,6 +108,8 @@ class S {
       _isEs ? 'Carpeta: $path' : 'Folder: $path';
   String get musicFolder => _isEs ? 'Carpeta de música' : 'Music folder';
   String get videoFolder => _isEs ? 'Carpeta de videos' : 'Video folder';
+  String get changeFolder =>
+      _isEs ? 'Cambiar carpeta' : 'Change folder';
   String get changeMusicFolder =>
       _isEs ? 'Cambiar carpeta de música' : 'Change music folder';
   String get changeVideoFolder =>
@@ -134,6 +137,19 @@ class S {
       _isEs ? 'No se pudo abrir el archivo.' : 'Could not open file.';
   String get cantOpenFolder =>
       _isEs ? 'No se pudo abrir la carpeta.' : 'Could not open folder.';
+
+  // ===== CONFIGURACIÓN =====
+  String get settingsTitle => _isEs ? 'Configuración' : 'Settings';
+  String get settingsTooltip => _isEs ? 'Configuración' : 'Settings';
+  String get themeSection => _isEs ? 'Apariencia' : 'Appearance';
+  String get themeSystem => _isEs ? 'Sistema' : 'System';
+  String get themeLight => _isEs ? 'Claro' : 'Light';
+  String get themeDark => _isEs ? 'Oscuro' : 'Dark';
+  String get languageSection => _isEs ? 'Idioma' : 'Language';
+  String get languageSystem => _isEs ? 'Sistema' : 'System';
+  String get languageSpanish => _isEs ? 'Español' : 'Spanish';
+  String get languageEnglish => _isEs ? 'Inglés' : 'English';
+  String get downloadFoldersSection => _isEs ? 'Carpetas de descarga' : 'Download folders';
 
   // ===== ELIMINAR =====
   String get deleteFileTitle =>

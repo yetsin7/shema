@@ -34,6 +34,16 @@ android {
         }
     }
 
+    // Evitar que llvm-strip procese archivos .zip.so (no son binarios nativos reales)
+    packaging {
+        jniLibs {
+            keepDebugSymbols += listOf(
+                "**/libffmpeg.zip.so",
+                "**/libpython.zip.so"
+            )
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
@@ -53,6 +63,11 @@ android {
 
 flutter {
     source = "../.."
+}
+
+// Suprimir warnings de source/target obsoletos en dependencias compiladas con Java 8
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.add("-Xlint:-options")
 }
 
 val youtubedlAndroidVersion = "0.18.1"
