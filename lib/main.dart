@@ -3,11 +3,15 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:file_picker/file_picker.dart';
+
+import 'l10n.dart';
+import 'theme.dart';
 
 void main() {
   runApp(const ShemaApp());
@@ -18,15 +22,22 @@ class ShemaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32));
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Shema',
-      theme: ThemeData(
-        colorScheme: scheme,
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF4F7F2),
-      ),
+      theme: buildLightTheme(),
+      darkTheme: buildDarkTheme(),
+      themeMode: ThemeMode.system,
+      localizationsDelegates: const [
+        SDelegate(),
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es'),
+        Locale('en'),
+      ],
       home: const SplashScreen(),
     );
   }
@@ -233,7 +244,7 @@ class _SplashScreenState extends State<SplashScreen>
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: Image.asset(
-                          'assets/icono-bajar-videos.png',
+                          'assets/icon_shema.png',
                           fit: BoxFit.contain,
                         ),
                       ),
@@ -261,12 +272,14 @@ class _SplashScreenState extends State<SplashScreen>
                   // SubtÃ­tulo
                   FadeTransition(
                     opacity: _fadeAnimation,
-                    child: Text(
-                      'Descarga tus videos favoritos',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.9),
-                        letterSpacing: 0.5,
+                    child: Builder(
+                      builder: (context) => Text(
+                        S.of(context).splashSubtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                   ),
@@ -302,16 +315,21 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Text(
-                          _progress < 0.5
-                              ? 'Iniciando...'
-                              : _progress < 0.95
-                                  ? 'Cargando YouTube...'
-                                  : 'Listo!',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.white.withOpacity(0.8),
-                          ),
+                        Builder(
+                          builder: (context) {
+                            final s = S.of(context);
+                            return Text(
+                              _progress < 0.5
+                                  ? s.splashInitializing
+                                  : _progress < 0.95
+                                      ? s.splashLoadingYouTube
+                                      : s.splashReady,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.white.withOpacity(0.8),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -661,27 +679,27 @@ class _HomeScreenState extends State<HomeScreen> {
     final action = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Configuracion de descargas'),
+        title: Text(S.of(context).downloadSettingsTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Carpeta actual:', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(S.of(context).currentFolder, style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text(initial, style: const TextStyle(fontSize: 12)),
             const SizedBox(height: 16),
-            const Text('Selecciona una nueva carpeta para guardar las descargas.'),
+            Text(S.of(context).selectFolderInstruction),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancelar'),
+            child: Text(S.of(context).cancel),
           ),
           FilledButton.icon(
             onPressed: () => Navigator.pop(dialogContext, 'select'),
             icon: const Icon(Icons.folder_open),
-            label: const Text('Seleccionar carpeta'),
+            label: Text(S.of(context).selectFolder),
           ),
         ],
       ),
@@ -693,7 +711,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Abrir selector de carpeta
     final selectedPath = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'Selecciona carpeta para descargas',
+      dialogTitle: S.of(context).selectFolderDialogTitle,
       initialDirectory: initial,
     );
 
@@ -716,14 +734,14 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Carpeta: $selectedPath')),
+        SnackBar(content: Text(S.of(context).folderSet(selectedPath))),
       );
     } catch (e) {
       // Verificar mounted antes de mostrar error
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error al seleccionar carpeta.')),
+        SnackBar(content: Text(S.of(context).folderSelectError)),
       );
     }
   }
@@ -782,7 +800,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     final label = type == 'audio' ? 'MP3' : 'MP4';
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Descarga iniciada: $label en $quality')),
+      SnackBar(content: Text(S.of(context).downloadStarted(label, quality))),
     );
   }
 
@@ -833,7 +851,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Icon(
                 isSelected ? activeIcon : icon,
                 size: isSelected ? 24 : 22,
-                color: isSelected ? color : Colors.grey.shade600,
+                color: isSelected ? color : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 3),
@@ -844,7 +862,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(
                 fontSize: isSelected ? 11 : 10,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? color : Colors.grey.shade600,
+                color: isSelected ? color : Theme.of(context).colorScheme.onSurfaceVariant,
                 letterSpacing: 0.2,
                 height: 1.1,
               ),
@@ -864,7 +882,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocalState) => AlertDialog(
-          title: Text(isAudio ? 'Calidad de audio' : 'Calidad de video'),
+          title: Text(isAudio ? S.of(context).audioQualityTitle : S.of(context).videoQualityTitle),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: options.map((q) {
@@ -885,11 +903,11 @@ class _HomeScreenState extends State<HomeScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
+              child: Text(S.of(context).cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, selected),
-              child: const Text('Aceptar'),
+              child: Text(S.of(context).accept),
             ),
           ],
         ),
@@ -899,13 +917,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = _currentIndex == 0
-        ? 'YouTube'
-        : _currentIndex == 1
-        ? 'Shorts'
-        : _currentIndex == 2
-        ? 'MP3'
-        : 'MP4';
+    const title = 'Shema';
 
     return PopScope(
       canPop: false,
@@ -937,7 +949,7 @@ class _HomeScreenState extends State<HomeScreen> {
         appBar: AppBar(
         leading: (_currentIndex == 0 || _currentIndex == 1)
             ? IconButton(
-                tooltip: 'Volver atrÃ¡s',
+                tooltip: S.of(context).backTooltip,
                 onPressed: _goBackInWebView,
                 icon: const Icon(Icons.arrow_back),
               )
@@ -947,7 +959,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.asset(
-                'assets/icono-bajar-videos.png',
+                'assets/icon_shema.png',
                 width: 28,
                 height: 28,
                 fit: BoxFit.cover,
@@ -959,12 +971,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Configurar descargas',
+            tooltip: S.of(context).downloadSettingsTooltip,
             onPressed: _openDownloadSettings,
             icon: const Icon(Icons.settings_outlined),
           ),
           IconButton(
-            tooltip: 'Descargar',
+            tooltip: S.of(context).downloadTooltip,
             onPressed: _openDownloadOptions,
             icon: const Icon(Icons.download),
           ),
@@ -980,7 +992,9 @@ class _HomeScreenState extends State<HomeScreen> {
               if (active.isEmpty) return const SizedBox.shrink();
 
               return Container(
-                color: const Color(0xFF1B5E20),
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF1B3A1C)
+                    : const Color(0xFF1B5E20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: active.map((task) {
@@ -1033,7 +1047,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: const Icon(Icons.close, color: Colors.white70, size: 18),
                             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                             padding: EdgeInsets.zero,
-                            tooltip: 'Cancelar descarga',
+                            tooltip: S.of(context).cancelDownloadTooltip,
                           ),
                         ],
                       ),
@@ -1070,23 +1084,19 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: Container(
+      bottomNavigationBar: Builder(
+        builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.white,
-              const Color(0xFFFAFAFA),
-            ],
-          ),
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
               blurRadius: 20,
               spreadRadius: 0,
               offset: const Offset(0, -4),
@@ -1131,6 +1141,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
+      );
+        },
       ),
       ),
     );
@@ -1198,10 +1210,10 @@ class _DownloadDialogState extends State<_DownloadDialog> {
               children: [
                 const Icon(Icons.download_rounded, color: Color(0xFF2E7D32), size: 28),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Descargar',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                    S.of(context).downloadDialogTitle,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                   ),
                 ),
                 // Botón cerrar
@@ -1209,7 +1221,7 @@ class _DownloadDialogState extends State<_DownloadDialog> {
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.close, size: 22),
                   style: IconButton.styleFrom(
-                    backgroundColor: Colors.grey.shade100,
+                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                     minimumSize: const Size(32, 32),
                   ),
                 ),
@@ -1222,23 +1234,23 @@ class _DownloadDialogState extends State<_DownloadDialog> {
             TextField(
               controller: widget.urlController,
               decoration: InputDecoration(
-                hintText: 'Pega el link del video aqui...',
-                hintStyle: TextStyle(color: Colors.grey.shade400),
+                hintText: S.of(context).downloadUrlHint,
+                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                 prefixIcon: const Icon(Icons.link, color: Color(0xFF2E7D32)),
                 suffixIcon: IconButton(
-                  tooltip: 'Limpiar',
+                  tooltip: S.of(context).clearTooltip,
                   onPressed: () => widget.urlController.clear(),
                   icon: const Icon(Icons.clear, size: 20),
                 ),
                 filled: true,
-                fillColor: Colors.grey.shade50,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerLowest,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1257,7 +1269,7 @@ class _DownloadDialogState extends State<_DownloadDialog> {
             OutlinedButton.icon(
               onPressed: _pasteFromClipboard,
               icon: const Icon(Icons.content_paste, size: 20),
-              label: const Text('Pegar link del portapapeles'),
+              label: Text(S.of(context).pasteClipboard),
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF2E7D32),
                 side: const BorderSide(color: Color(0xFF2E7D32)),
@@ -1284,7 +1296,7 @@ class _DownloadDialogState extends State<_DownloadDialog> {
                     label: const Text('MP4'),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFFFF5722),
-                      disabledBackgroundColor: Colors.grey.shade300,
+                      disabledBackgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -1304,7 +1316,7 @@ class _DownloadDialogState extends State<_DownloadDialog> {
                     label: const Text('MP3'),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF1565C0),
-                      disabledBackgroundColor: Colors.grey.shade300,
+                      disabledBackgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -1789,10 +1801,11 @@ class MusicScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     return MediaLibraryScreen(
-      title: 'Musica',
-      emptyTitle: 'Sin musica por ahora',
-      emptyDescription: 'No se encontraron audios en la carpeta configurada.',
+      title: s.musicTitle,
+      emptyTitle: s.noMusicYet,
+      emptyDescription: s.noMusicDescription,
       extensions: const <String>{'.mp3', '.m4a', '.wav'},
       icon: Icons.graphic_eq_rounded,
       iconColor: const Color(0xFF1565C0),
@@ -1816,10 +1829,11 @@ class VideosScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     return MediaLibraryScreen(
-      title: 'Videos',
-      emptyTitle: 'Sin videos por ahora',
-      emptyDescription: 'No se encontraron videos en la carpeta configurada.',
+      title: s.videosTitle,
+      emptyTitle: s.noVideosYet,
+      emptyDescription: s.noVideosDescription,
       extensions: const <String>{'.mp4', '.webm', '.mkv'},
       icon: Icons.movie_creation_outlined,
       iconColor: const Color(0xFFEF6C00),
@@ -1939,7 +1953,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     if (!await file.exists()) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El archivo aun no esta disponible.')),
+        SnackBar(content: Text(S.of(context).fileNotAvailable)),
       );
       return;
     }
@@ -1948,7 +1962,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     if (!mounted) return;
     if (result.type == ResultType.done) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('No se pudo abrir el archivo.')),
+      SnackBar(content: Text(S.of(context).cantOpenFile)),
     );
   }
 
@@ -2043,17 +2057,18 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     }
 
     // Texto de estado
+    final s = S.of(context);
     final statusText = failed
-        ? 'Error'
+        ? s.error
         : downloading
             ? '${(task!.progress * 100).toStringAsFixed(0)}%'
-            : 'Completado';
+            : s.completed;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        color: Colors.white,
+        color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
         border: Border.all(
           color: downloading
               ? widget.iconColor.withValues(alpha: 0.4)
@@ -2132,7 +2147,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                       child: LinearProgressIndicator(
                         value: task!.progress,
                         minHeight: 6,
-                        backgroundColor: Colors.grey.shade200,
+                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                         valueColor: AlwaysStoppedAnimation<Color>(widget.iconColor),
                       ),
                     ),
@@ -2142,7 +2157,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                       child: OutlinedButton.icon(
                         onPressed: () => widget.downloadCenter.cancel(task.id),
                         icon: const Icon(Icons.close, size: 16),
-                        label: const Text('Cancelar'),
+                        label: Text(s.cancel),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.red.shade700,
                           side: BorderSide(color: Colors.red.shade200),
@@ -2159,7 +2174,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                       child: OutlinedButton.icon(
                         onPressed: () => widget.downloadCenter.removeTask(task!.id),
                         icon: const Icon(Icons.delete_outline, size: 16),
-                        label: const Text('Eliminar'),
+                        label: Text(s.delete),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.red.shade700,
                           side: BorderSide(color: Colors.red.shade200),
@@ -2177,7 +2192,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                           child: FilledButton.icon(
                             onPressed: mediaFile == null ? null : () => _openMedia(mediaFile),
                             icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                            label: const Text('Reproducir'),
+                            label: Text(s.play),
                             style: FilledButton.styleFrom(
                               backgroundColor: widget.iconColor,
                               foregroundColor: Colors.white,
@@ -2194,7 +2209,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                               name: name,
                             ),
                             icon: const Icon(Icons.delete_outline, size: 18),
-                            label: const Text('Eliminar'),
+                            label: Text(s.delete),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.red.shade700,
                               side: BorderSide(color: Colors.red.shade200),
@@ -2283,19 +2298,19 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eliminar archivo'),
-        content: Text('¿Eliminar "$name"? Esta acción no se puede deshacer.'),
+        title: Text(S.of(context).deleteFileTitle),
+        content: Text(S.of(context).deleteFileConfirm(name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+            child: Text(S.of(context).cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: FilledButton.styleFrom(
               backgroundColor: Colors.red.shade700,
             ),
-            child: const Text('Eliminar'),
+            child: Text(S.of(context).delete),
           ),
         ],
       ),
@@ -2315,7 +2330,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     await _refresh();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Archivo eliminado.')),
+      SnackBar(content: Text(S.of(context).fileDeleted)),
     );
   }
 
@@ -2340,7 +2355,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(widget.icon, color: widget.iconColor),
@@ -2360,12 +2375,12 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                 const SizedBox(height: 2),
                 Text(
                   widget.downloadDirectory == null
-                      ? 'Carpeta no configurada'
-                      : 'Carpeta: ${widget.downloadDirectory!}',
+                      ? S.of(context).folderNotConfigured
+                      : S.of(context).folderPath(widget.downloadDirectory!),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.grey.shade700,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -2382,7 +2397,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.78),
+        color: Theme.of(context).colorScheme.surface.withOpacity(0.78),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: widget.iconColor.withOpacity(0.22)),
       ),
@@ -2394,7 +2409,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
           Text(
             label,
             style: TextStyle(
-              color: Colors.grey.shade800,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
