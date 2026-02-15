@@ -4,6 +4,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'download_service.dart';
@@ -24,7 +25,7 @@ class QualityPicker {
 
   final YtDlpService _ytDlp;
 
-  static const _qualityFetchTimeout = Duration(seconds: 6);
+  static const _qualityFetchTimeout = Duration(seconds: 45);
   static const _qualityPrefetchDebounce = Duration(milliseconds: 900);
 
   final Map<String, List<QualityOption>> _qualityCache = {};
@@ -68,7 +69,11 @@ class QualityPicker {
     final key = _qualityCacheKey(url, isAudio);
 
     final cached = _qualityCache[key];
-    if (cached != null && cached.isNotEmpty) return cached;
+    if (cached != null && cached.isNotEmpty) {
+      debugPrint('[QualityPicker] CACHE HIT for $key (${cached.length} options)');
+      return cached;
+    }
+    debugPrint('[QualityPicker] CACHE MISS for $key (cache keys: ${_qualityCache.keys.toList()})');
 
     final pending = _qualityPending[key];
     if (pending != null) return pending;
@@ -90,20 +95,36 @@ class QualityPicker {
 
   /// Obtiene formatos disponibles llamando a yt-dlp y extrae calidades
   Future<List<QualityOption>> _fetchRealQualities(String url, bool isAudio) async {
-    final raw = await _ytDlp.getVideoInfo(url);
-    if (raw.trim().isEmpty) return const <QualityOption>[];
+    debugPrint('[QualityPicker] Fetching qualities for: $url (isAudio=$isAudio)');
+    try {
+      final raw = await _ytDlp.getVideoInfo(url);
+      debugPrint('[QualityPicker] Response length: ${raw.length}');
+      if (raw.trim().isEmpty) {
+        debugPrint('[QualityPicker] Empty response from getVideoInfo');
+        return const <QualityOption>[];
+      }
 
-    final decoded = jsonDecode(raw);
-    final root = _extractInfoRoot(decoded);
-    if (root == null) return const <QualityOption>[];
+      final decoded = jsonDecode(raw);
+      final root = _extractInfoRoot(decoded);
+      if (root == null) {
+        debugPrint('[QualityPicker] Could not extract info root');
+        return const <QualityOption>[];
+      }
 
-    final formats = root['formats'];
-    if (formats is! List) return const <QualityOption>[];
+      final formats = root['formats'];
+      if (formats is! List) {
+        debugPrint('[QualityPicker] No formats list found');
+        return const <QualityOption>[];
+      }
 
-    if (isAudio) {
-      return _extractAudioQualities(formats);
+      debugPrint('[QualityPicker] Found ${formats.length} formats');
+      final result = isAudio ? _extractAudioQualities(formats) : _extractVideoQualities(formats);
+      debugPrint('[QualityPicker] Extracted ${result.length} quality options');
+      return result;
+    } catch (e) {
+      debugPrint('[QualityPicker] Error: $e');
+      return const <QualityOption>[];
     }
-    return _extractVideoQualities(formats);
   }
 
   /// Extrae calidades de audio de los formatos
@@ -152,14 +173,9 @@ class QualityPicker {
     final loadingDialogFuture = showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => AlertDialog(
-        content: Row(
-          children: [
-            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5)),
-            const SizedBox(width: 12),
-            Expanded(child: Text(s.loadingQualities)),
-          ],
-        ),
+      builder: (ctx) => _CountdownLoadingDialog(
+        message: s.loadingQualities,
+        seconds: 45,
       ),
     ).then((_) {
       loadingDialogClosed = true;
@@ -239,4 +255,53 @@ class QualityPicker {
   /// Convierte un valor dinámico a int
   int? _asInt(dynamic value) =>
       value is int ? value : (value is num ? value.toInt() : (value is String ? int.tryParse(value) : null));
+}
+
+/// Diálogo de carga con cuenta regresiva
+class _CountdownLoadingDialog extends StatefulWidget {
+  const _CountdownLoadingDialog({required this.message, required this.seconds});
+
+  final String message;
+  final int seconds;
+
+  @override
+  State<_CountdownLoadingDialog> createState() => _CountdownLoadingDialogState();
+}
+
+class _CountdownLoadingDialogState extends State<_CountdownLoadingDialog> {
+  late int _remaining;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = widget.seconds;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_remaining > 0) {
+        setState(() => _remaining--);
+      } else {
+        _timer?.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      content: Row(
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(width: 20),
+          Expanded(child: Text(widget.message)),
+          Text('${_remaining}s', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        ],
+      ),
+    );
+  }
 }

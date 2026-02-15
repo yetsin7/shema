@@ -8,6 +8,7 @@ import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.yausername.ffmpeg.FFmpeg
 import kotlinx.coroutines.*
+import kotlinx.coroutines.time.*
 import java.io.File
 import android.util.Log
 
@@ -107,13 +108,15 @@ class MainActivity : FlutterActivity() {
                 } else {
                     // Descargar video y audio por separado, luego combinar con ffmpeg
                     val height = quality.replace("p", "").toIntOrNull() ?: 720
-                    val formatStr = "bestvideo[height<=${height}]+bestaudio/best[height<=${height}]"
+                    val formatStr = "bestvideo[height=${height}]+bestaudio/best[height=${height}]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]"
                     request.addOption("-f", formatStr)
                     request.addOption("--merge-output-format", "mp4")
                     Log.d(TAG, "Modo: VIDEO, formato: $formatStr (merge a mp4 con ffmpeg)")
                 }
 
                 request.addOption("--no-mtime")
+                request.addOption("--force-overwrites")
+                request.addOption("--no-continue")
                 request.addOption("--no-post-overwrites")
                 request.addOption("--no-playlist")
                 request.addOption("--no-warnings")
@@ -180,7 +183,7 @@ class MainActivity : FlutterActivity() {
         downloadJobs[downloadId] = job
     }
 
-    /// Obtiene informaciÃ³n del video sin descargarlo
+    /// Obtiene información del video sin descargarlo (con timeout de 25s)
     private fun getVideoInfo(url: String, result: MethodChannel.Result) {
         scope.launch {
             try {
@@ -189,11 +192,25 @@ class MainActivity : FlutterActivity() {
                 request.addOption("--no-download")
                 request.addOption("--no-playlist")
                 request.addOption("--no-warnings")
-                val response = YoutubeDL.getInstance().execute(request)
+                request.addOption("--socket-timeout", "15")
+                Log.d(TAG, "getVideoInfo: ejecutando para $url")
+                val response = withTimeout(25_000L) {
+                    YoutubeDL.getInstance().execute(request)
+                }
+                Log.d(TAG, "getVideoInfo: respuesta recibida, largo=${response.out?.length ?: 0}")
+                if (response.out.isNullOrBlank()) {
+                    Log.w(TAG, "getVideoInfo: respuesta vacía, stderr=${response.err}")
+                }
                 withContext(Dispatchers.Main) {
-                    result.success(response.out)
+                    result.success(response.out ?: "")
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "getVideoInfo: TIMEOUT después de 25s")
+                withContext(Dispatchers.Main) {
+                    result.error("INFO_TIMEOUT", "Timeout obteniendo info del video", null)
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "getVideoInfo: ERROR ${e.message}", e)
                 withContext(Dispatchers.Main) {
                     result.error("INFO_ERROR", e.message, null)
                 }
@@ -213,15 +230,18 @@ class MainActivity : FlutterActivity() {
         ))
     }
 
-    /// Actualiza yt-dlp a la Ãºltima versiÃ³n
+    /// Actualiza yt-dlp a la última versión
     private fun updateYtDlp(result: MethodChannel.Result) {
         scope.launch {
             try {
+                Log.d(TAG, "updateYtDlp: iniciando actualización...")
                 val status = YoutubeDL.getInstance().updateYoutubeDL(applicationContext)
+                Log.d(TAG, "updateYtDlp: resultado=$status")
                 withContext(Dispatchers.Main) {
                     result.success(status?.name ?: "DONE")
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "updateYtDlp: ERROR ${e.message}", e)
                 withContext(Dispatchers.Main) {
                     result.error("UPDATE_ERROR", e.message, null)
                 }

@@ -73,13 +73,10 @@ android {
                 signingConfigs.getByName("debug")
             }
 
-            // R8: ofuscación y minificación de código
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            // R8 desactivado: yt-dlp/Chaquopy requieren reflexión completa
+            // La ofuscación del código Dart se hace con --obfuscate de Flutter
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

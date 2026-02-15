@@ -38,6 +38,7 @@ ThemeData buildLightTheme() {
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      insetPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 80),
     ),
   );
 }
@@ -69,6 +70,7 @@ ThemeData buildDarkTheme() {
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      insetPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 80),
     ),
   );
 }

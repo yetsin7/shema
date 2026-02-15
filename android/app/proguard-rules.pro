@@ -11,9 +11,10 @@
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
 
-# youtubedl-android (yt-dlp) y Python embebido - no ofuscar nada de estas libs
--keep,allowoptimization class com.yausername.youtubedl_android.** { *; }
--keep,allowoptimization class com.yausername.ffmpeg.** { *; }
+# youtubedl-android (yt-dlp) y Python embebido - preservar todas las clases y miembros
+-keep class com.yausername.youtubedl_android.** { *; }
+-keepclassmembers class com.yausername.youtubedl_android.** { *; }
+-keep class com.yausername.ffmpeg.** { *; }
 -keep class com.chaquo.** { *; }
 -keep class org.chaquopy.** { *; }
 -dontwarn com.chaquo.**
