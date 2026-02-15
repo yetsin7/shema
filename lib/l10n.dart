@@ -95,6 +95,15 @@ class S {
       _isEs ? 'Carpeta no configurada' : 'Folder not configured';
   String folderPath(String path) =>
       _isEs ? 'Carpeta: $path' : 'Folder: $path';
+  String get musicFolder => _isEs ? 'Carpeta de música' : 'Music folder';
+  String get videoFolder => _isEs ? 'Carpeta de videos' : 'Video folder';
+  String get changeMusicFolder =>
+      _isEs ? 'Cambiar carpeta de música' : 'Change music folder';
+  String get changeVideoFolder =>
+      _isEs ? 'Cambiar carpeta de videos' : 'Change video folder';
+  String get downloadSettingsDescription => _isEs
+      ? 'La música y los videos se guardan en carpetas separadas para mantener el orden.'
+      : 'Music and videos are saved in separate folders to keep things organized.';
 
   // ===== BIBLIOTECA =====
   String get musicTitle => _isEs ? 'Música' : 'Music';

@@ -613,7 +613,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const _downloadDirKey = 'download_directory_path';
+  static const _musicDirKey = 'music_directory_path';
+  static const _videoDirKey = 'video_directory_path';
 
   final DownloadCenter _downloadCenter = DownloadCenter();
   final GlobalKey<_YouTubeScreenState> _youtubeKey =
@@ -622,7 +623,8 @@ class _HomeScreenState extends State<HomeScreen> {
       GlobalKey<_YouTubeScreenState>();
 
   int _currentIndex = 0;
-  String? _downloadDirectory;
+  String? _musicDirectory;
+  String? _videoDirectory;
 
   static const _videoQualities = <String>[
     '144p',
@@ -643,7 +645,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(_loadDownloadDirectory());
+    unawaited(_loadDirectories());
   }
 
   @override
@@ -652,105 +654,172 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<String> _defaultDir() async {
-    // Usar carpeta interna de la app que siempre tiene permisos
+  /// Retorna la carpeta base por defecto dentro de documentos de la app
+  Future<String> _defaultBaseDir() async {
     final appDir = await getApplicationDocumentsDirectory();
     return '${appDir.path}${Platform.pathSeparator}Shema';
   }
 
-  Future<void> _loadDownloadDirectory() async {
+  /// Carga las carpetas de música y video desde preferencias
+  Future<void> _loadDirectories() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_downloadDirKey);
-    final path = (saved == null || saved.trim().isEmpty)
-        ? await _defaultDir()
-        : saved.trim();
-    await Directory(path).create(recursive: true);
+    final baseDir = await _defaultBaseDir();
+
+    final savedMusic = prefs.getString(_musicDirKey);
+    final savedVideo = prefs.getString(_videoDirKey);
+
+    final musicPath = (savedMusic == null || savedMusic.trim().isEmpty)
+        ? '$baseDir${Platform.pathSeparator}Music'
+        : savedMusic.trim();
+    final videoPath = (savedVideo == null || savedVideo.trim().isEmpty)
+        ? '$baseDir${Platform.pathSeparator}Videos'
+        : savedVideo.trim();
+
+    await Directory(musicPath).create(recursive: true);
+    await Directory(videoPath).create(recursive: true);
+
     if (!mounted) return;
     setState(() {
-      _downloadDirectory = path;
+      _musicDirectory = musicPath;
+      _videoDirectory = videoPath;
     });
   }
 
+  /// Abre el diálogo de configuración con carpetas separadas para música y videos
   Future<void> _openDownloadSettings() async {
-    final initial = _downloadDirectory ?? await _defaultDir();
     if (!mounted) return;
+    final s = S.of(context);
 
-    // Mostrar diÃ¡logo con opciÃ³n de navegar
-    final action = await showDialog<String>(
+    await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(S.of(context).downloadSettingsTitle),
+        title: Text(s.downloadSettingsTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(S.of(context).currentFolder, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(initial, style: const TextStyle(fontSize: 12)),
+            Text(s.downloadSettingsDescription,
+                style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 16),
-            Text(S.of(context).selectFolderInstruction),
+            // Carpeta de música
+            _buildFolderRow(
+              icon: Icons.music_note_rounded,
+              color: ShemaColors.musicBlue,
+              label: s.musicFolder,
+              path: _musicDirectory ?? '...',
+              onTap: () {
+                Navigator.pop(dialogContext);
+                _pickFolder(isMusic: true);
+              },
+            ),
+            const SizedBox(height: 12),
+            // Carpeta de videos
+            _buildFolderRow(
+              icon: Icons.videocam_rounded,
+              color: ShemaColors.videoOrange,
+              label: s.videoFolder,
+              path: _videoDirectory ?? '...',
+              onTap: () {
+                Navigator.pop(dialogContext);
+                _pickFolder(isMusic: false);
+              },
+            ),
           ],
         ),
         actions: [
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: Text(S.of(context).cancel),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(dialogContext, 'select'),
-            icon: const Icon(Icons.folder_open),
-            label: Text(S.of(context).selectFolder),
+            child: Text(s.accept),
           ),
         ],
       ),
     );
+  }
 
-    // Si se cancela o el widget ya no estÃ¡ montado, salir
-    if (action != 'select') return;
-    if (!mounted) return;
+  /// Fila de carpeta en el diálogo de configuración
+  Widget _buildFolderRow({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required String path,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+          color: color.withValues(alpha: 0.08),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(height: 2),
+                  Text(path, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                ],
+              ),
+            ),
+            Icon(Icons.folder_open, color: color, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
 
-    // Abrir selector de carpeta
+  /// Selector de carpeta para música o video
+  Future<void> _pickFolder({required bool isMusic}) async {
+    final s = S.of(context);
+    final initial = isMusic ? _musicDirectory : _videoDirectory;
+
     final selectedPath = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: S.of(context).selectFolderDialogTitle,
+      dialogTitle: isMusic ? s.changeMusicFolder : s.changeVideoFolder,
       initialDirectory: initial,
     );
 
-    // Si se cancela la selecciÃ³n o el widget ya no estÃ¡ montado, salir silenciosamente
     if (selectedPath == null || selectedPath.isEmpty) return;
     if (!mounted) return;
 
     try {
       await Directory(selectedPath).create(recursive: true);
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_downloadDirKey, selectedPath);
+      await prefs.setString(isMusic ? _musicDirKey : _videoDirKey, selectedPath);
 
       if (!mounted) return;
-
       setState(() {
-        _downloadDirectory = selectedPath;
+        if (isMusic) {
+          _musicDirectory = selectedPath;
+        } else {
+          _videoDirectory = selectedPath;
+        }
       });
 
-      // Verificar mounted antes de usar ScaffoldMessenger
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(S.of(context).folderSet(selectedPath))),
+        SnackBar(content: Text(s.folderSet(selectedPath))),
       );
     } catch (e) {
-      // Verificar mounted antes de mostrar error
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(S.of(context).folderSelectError)),
+        SnackBar(content: Text(s.folderSelectError)),
       );
     }
   }
 
   /// Abre el modal de descarga con campo para pegar link
   Future<void> _openDownloadOptions() async {
-    if (_downloadDirectory == null || _downloadDirectory!.isEmpty) {
+    if (_musicDirectory == null || _videoDirectory == null) {
       await _openDownloadSettings();
-      if (_downloadDirectory == null || _downloadDirectory!.isEmpty || !mounted) {
+      if (_musicDirectory == null || _videoDirectory == null || !mounted) {
         return;
       }
     }
@@ -790,11 +859,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final quality = await _pickQuality(type == 'audio');
     if (quality == null || !mounted) return;
 
+    final isAudio = type == 'audio';
     _downloadCenter.enqueue(
-      kind: type == 'audio' ? MediaKind.audio : MediaKind.video,
+      kind: isAudio ? MediaKind.audio : MediaKind.video,
       quality: quality,
       url: url,
-      downloadDirectory: _downloadDirectory!,
+      downloadDirectory: isAudio ? _musicDirectory! : _videoDirectory!,
     );
 
     if (!mounted) return;
@@ -1073,11 +1143,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 MusicScreen(
                   downloadCenter: _downloadCenter,
-                  downloadDirectory: _downloadDirectory,
+                  downloadDirectory: _musicDirectory,
                 ),
                 VideosScreen(
                   downloadCenter: _downloadCenter,
-                  downloadDirectory: _downloadDirectory,
+                  downloadDirectory: _videoDirectory,
                 ),
               ],
             ),
