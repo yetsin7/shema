@@ -6,10 +6,16 @@ import 'package:flutter/services.dart';
 
 import '../l10n.dart';
 
-/// Diálogo para ingresar URL y elegir formato de descarga
+/// Diálogo para ingresar una URL de YouTube y elegir formato MP3 o MP4.
+///
+/// Incluye campo de texto con botón de pegar desde portapapeles.
+/// Retorna un Map con 'url' y 'type' ('audio' o 'video') al confirmar,
+/// o null si se cancela.
 class DownloadDialog extends StatefulWidget {
+  /// Crea el diálogo con un [urlController] externo para pre-llenar la URL
   const DownloadDialog({required this.urlController, super.key});
 
+  /// Controlador del campo de texto (manejado externamente para pre-llenar)
   final TextEditingController urlController;
 
   @override

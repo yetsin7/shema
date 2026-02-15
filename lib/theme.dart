@@ -1,17 +1,35 @@
+/// Definición de temas claro y oscuro para la app Shema.
+///
+/// Usa Material 3 con un color semilla verde (#2E7D32).
+/// Los temas incluyen configuración de AppBar semi-transparente,
+/// tarjetas sin elevación, y SnackBars flotantes posicionados
+/// sobre el menú de navegación inferior.
+library;
+
 import 'package:flutter/material.dart';
 
-/// Colores base de la app
+/// Paleta de colores de marca usados en la app.
+///
+/// [seedColor] genera el esquema Material 3 completo.
+/// Los demás colores identifican cada pestaña del menú de navegación.
 class ShemaColors {
+  /// Verde principal de Shema, usado como semilla de Material 3
   static const seedColor = Color(0xFF2E7D32);
 
-  // Colores de marca para las pestañas
+  /// Rojo de YouTube para la pestaña principal
   static const youtubeRed = Color(0xFFD32F2F);
+
+  /// Naranja para la pestaña de Shorts
   static const shortsOrange = Color(0xFFFF5722);
+
+  /// Azul para la pestaña de música
   static const musicBlue = Color(0xFF1565C0);
+
+  /// Naranja para la pestaña de videos
   static const videoOrange = Color(0xFFEF6C00);
 }
 
-/// Genera el tema claro
+/// Genera el tema claro con fondo #F4F7F2 y AppBar semi-transparente (92%)
 ThemeData buildLightTheme() {
   final scheme = ColorScheme.fromSeed(
     seedColor: ShemaColors.seedColor,
@@ -43,7 +61,7 @@ ThemeData buildLightTheme() {
   );
 }
 
-/// Genera el tema oscuro
+/// Genera el tema oscuro con fondo #121212 y AppBar semi-transparente (92%)
 ThemeData buildDarkTheme() {
   final scheme = ColorScheme.fromSeed(
     seedColor: ShemaColors.seedColor,

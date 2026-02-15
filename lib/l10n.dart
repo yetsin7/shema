@@ -1,17 +1,29 @@
-﻿import 'package:flutter/widgets.dart';
+﻿/// Sistema de internacionalización (i18n) manual para español e inglés.
+///
+/// Usa la clase [S] para acceder a todas las cadenas traducidas.
+/// Usa [SDelegate] como delegate en MaterialApp.localizationsDelegates.
+library;
 
-/// Clase de localizaciÃ³n simple para espaÃ±ol e inglÃ©s
+import 'package:flutter/widgets.dart';
+
+/// Clase de localización con todas las cadenas de texto de la app.
+///
+/// Soporta español (es) e inglés (en). El idioma por defecto es español.
+/// Se accede vía [S.of(context)] desde cualquier widget.
 class S {
+  /// Crea una instancia con el [locale] dado
   S(this.locale);
 
+  /// Idioma activo para esta instancia
   final Locale locale;
 
-  /// Obtiene la instancia de S del contexto actual
+  /// Obtiene la instancia de [S] más cercana en el árbol de widgets.
+  /// Si no existe, retorna español por defecto.
   static S of(BuildContext context) {
     return Localizations.of<S>(context, S) ?? S(const Locale('es'));
   }
 
-  /// Verifica si el idioma es espaÃ±ol
+  /// Retorna true si el idioma activo es español
   bool get _isEs => locale.languageCode == 'es';
 
   // ===== GENERAL =====
@@ -163,17 +175,24 @@ class S {
       _isEs ? 'No se pudo completar la descarga.' : 'Download failed.';
 }
 
-/// Delegate para el sistema de localizaciÃ³n de Flutter
+/// Delegate que registra [S] en el sistema de localización de Flutter.
+///
+/// Se usa en MaterialApp.localizationsDelegates para que [S.of(context)]
+/// funcione en cualquier widget del árbol.
 class SDelegate extends LocalizationsDelegate<S> {
+  /// Constructor constante para uso en listas de delegates
   const SDelegate();
 
+  /// Soporta español e inglés
   @override
   bool isSupported(Locale locale) =>
       ['es', 'en'].contains(locale.languageCode);
 
+  /// Carga la instancia de [S] para el idioma dado
   @override
   Future<S> load(Locale locale) async => S(locale);
 
+  /// No necesita recargar al cambiar de delegate
   @override
   bool shouldReload(SDelegate old) => false;
 }

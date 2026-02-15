@@ -20,23 +20,42 @@ import '../widgets/download_banner.dart';
 import 'youtube_screen.dart';
 import '../utils/youtube_utils.dart';
 
-/// Pantalla principal de la aplicación con navegación de pestañas
+/// Pantalla principal con 5 pestañas: YouTube, Shorts, Música, Videos, Configuración.
+///
+/// Usa [IndexedStack] para mantener el estado de cada pestaña.
+/// Recibe opcionalmente un [WebViewController] precargado desde el splash.
 class HomeScreen extends StatefulWidget {
+  /// Crea la pantalla principal con un controlador de YouTube opcional
   const HomeScreen({super.key, this.preloadedYouTubeController});
+
+  /// Controlador precargado durante el splash para arranque rápido
   final WebViewController? preloadedYouTubeController;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-/// Estado de la pantalla principal
+/// Estado de la pantalla principal que coordina todas las pestañas y servicios
 class _HomeScreenState extends State<HomeScreen> {
+  /// Centro de descargas compartido por todas las pestañas
   final DownloadCenter _downloadCenter = DownloadCenter();
+
+  /// Gestor de carpetas de música y video
   final DirectoryManager _dirManager = DirectoryManager();
+
+  /// Clave global para acceder al WebView de YouTube principal
   final GlobalKey<YouTubeScreenState> _youtubeKey = GlobalKey();
+
+  /// Clave global para acceder al WebView de Shorts
   final GlobalKey<YouTubeScreenState> _shortsKey = GlobalKey();
+
+  /// Selector de calidades con caché y precarga
   late final QualityPicker _qualityPicker;
+
+  /// Índice de la pestaña activa (0=YouTube, 1=Shorts, 2=Música, 3=Videos, 4=Config)
   int _currentIndex = 0;
+
+  /// Indica si un video está en pantalla completa (oculta AppBar y nav)
   bool _isFullScreen = false;
 
   @override

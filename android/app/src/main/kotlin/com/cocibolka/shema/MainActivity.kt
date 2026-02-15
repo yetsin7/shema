@@ -12,15 +12,35 @@ import kotlinx.coroutines.time.*
 import java.io.File
 import android.util.Log
 
+/// Tag para filtrar logs en logcat (adb logcat -s Shema_YtDlp)
 private const val TAG = "Shema_YtDlp"
 
+/// Activity principal que configura los platform channels para yt-dlp.
+///
+/// Expone 4 métodos al lado Flutter vía MethodChannel:
+/// - downloadMedia: inicia descarga de video/audio
+/// - getVideoInfo: obtiene JSON con formatos disponibles (--dump-json)
+/// - cancelDownload: cancela una descarga en progreso
+/// - updateYtDlp: actualiza yt-dlp a la última versión
+///
+/// También expone un EventChannel para enviar progreso en tiempo real.
 class MainActivity : FlutterActivity() {
+    /// Canal de métodos para invocar funciones de yt-dlp desde Flutter
     private val CHANNEL = "com.cocibolka.shema/ytdlp"
+
+    /// Canal de eventos para enviar progreso de descargas a Flutter
     private val EVENT_CHANNEL = "com.cocibolka.shema/ytdlp_progress"
+
+    /// Sink de eventos (null si Flutter no está escuchando)
     private var eventSink: EventChannel.EventSink? = null
+
+    /// Mapa de trabajos de descarga activos (downloadId → Job)
     private val downloadJobs = mutableMapOf<String, Job>()
+
+    /// Scope de coroutines para ejecutar operaciones en background (IO)
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    /// Configura el motor de Flutter: inicializa yt-dlp/ffmpeg y registra los canales
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -256,6 +276,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /// Limpia el scope de coroutines al destruir la activity
     override fun onDestroy() {
         scope.cancel()
         super.onDestroy()

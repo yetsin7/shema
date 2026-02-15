@@ -7,11 +7,16 @@ import '../services/download_center.dart';
 import '../services/download_service.dart';
 import '../l10n.dart';
 
-/// Banner que muestra las descargas activas
+/// Banner verde fijo en la parte superior del body que muestra las descargas activas.
+///
+/// Escucha cambios en [DownloadCenter] y muestra una fila por cada
+/// tarea en estado [DownloadStatus.downloading] con progreso y botón cancelar.
+/// Se oculta automáticamente cuando no hay descargas activas.
 class DownloadBanner extends StatelessWidget {
-  /// Crea un banner de descargas activas
+  /// Crea un banner de descargas que escucha al [downloadCenter]
   const DownloadBanner({required this.downloadCenter, super.key});
 
+  /// Centro de descargas del que obtiene las tareas activas
   final DownloadCenter downloadCenter;
 
   @override

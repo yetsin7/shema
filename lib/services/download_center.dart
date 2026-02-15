@@ -15,12 +15,22 @@ class DownloadCenter extends ChangeNotifier {
     _listenToProgress();
   }
 
+  /// Máximo de descargas de video simultáneas
   static const _maxConcurrentVideo = 10;
+
+  /// Máximo de descargas de audio simultáneas
   static const _maxConcurrentAudio = 20;
 
+  /// Lista de todas las tareas (activas, en cola, completadas y fallidas)
   final List<DownloadTask> _tasks = <DownloadTask>[];
+
+  /// Instancia del servicio de comunicación con yt-dlp nativo
   final YtDlpService _ytDlp = YtDlpService();
+
+  /// Suscripción al stream de eventos de progreso
   StreamSubscription? _progressSub;
+
+  /// Flag para evitar llamadas duplicadas a notifyListeners en el mismo frame
   bool _notifyScheduled = false;
 
   /// Notifica a los listeners de forma segura, evitando conflictos con el build

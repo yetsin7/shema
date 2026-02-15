@@ -6,8 +6,14 @@ import 'package:flutter/material.dart';
 import '../services/download_service.dart';
 import '../l10n.dart';
 
-/// Tarjeta unificada para mostrar tareas de descarga y archivos en disco
+/// Tarjeta unificada para mostrar tareas de descarga y archivos en disco.
+///
+/// Puede representar una tarea de descarga ([task]) o un archivo local ([file]).
+/// Muestra estado (en cola, descargando, completado, error), metadatos
+/// (calidad, formato, tamaño), y acciones contextuales (reproducir, eliminar,
+/// reintentar, cancelar).
 class MediaCard extends StatelessWidget {
+  /// Crea una tarjeta de medio. Debe tener al menos [task] o [file].
   const MediaCard({
     this.task,
     this.file,
@@ -22,14 +28,34 @@ class MediaCard extends StatelessWidget {
     super.key,
   });
 
+  /// Tarea de descarga asociada (null si es solo un archivo local)
   final DownloadTask? task;
+
+  /// Archivo en disco (null si la descarga no ha completado)
   final File? file;
+
+  /// Tipo de medio para determinar iconos y colores
   final MediaKind kind;
-  final Color iconColor, tileTint;
+
+  /// Color principal del icono según tipo (azul para audio, naranja para video)
+  final Color iconColor;
+
+  /// Color de fondo tenue para el borde y decoraciones
+  final Color tileTint;
+
+  /// Callback para reproducir un archivo completado
   final Future<void> Function(File) onPlay;
+
+  /// Callback para reintentar una descarga fallida
   final Future<void> Function(DownloadTask)? onRetry;
+
+  /// Callback para eliminar archivo/tarea con confirmación
   final Future<void> Function({DownloadTask? task, File? file, required String name}) onDelete;
+
+  /// Callback para cancelar una tarea en cola (antes de iniciar)
   final void Function(DownloadTask)? onCancel;
+
+  /// Callback para cancelar una descarga en progreso
   final void Function(DownloadTask)? onCancelDownload;
 
   @override

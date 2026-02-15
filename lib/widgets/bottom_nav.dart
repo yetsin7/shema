@@ -6,16 +6,24 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Barra de navegación inferior flotante con transparencia líquida
+/// Barra de navegación inferior flotante con efecto glassmorphism.
+///
+/// Usa [BackdropFilter] con blur para crear transparencia líquida.
+/// Contiene 5 pestañas: YouTube, Shorts, Música, Videos, Configuración.
+/// Se adapta automáticamente a la navegación Android (gestos vs botones)
+/// usando [MediaQuery.viewPadding.bottom].
 class CustomBottomNav extends StatelessWidget {
-  /// Crea una barra de navegación flotante con efecto glass
+  /// Crea una barra de navegación con el [currentIndex] seleccionado
   const CustomBottomNav({
     required this.currentIndex,
     required this.onIndexChanged,
     super.key,
   });
 
+  /// Índice de la pestaña actualmente seleccionada (0-4)
   final int currentIndex;
+
+  /// Callback cuando el usuario toca una pestaña diferente
   final ValueChanged<int> onIndexChanged;
 
   @override

@@ -28,8 +28,12 @@ const _youtubeCustomizationsJs = '''
 })();
 ''';
 
-/// Widget que muestra YouTube en un WebView personalizado
+/// Widget que muestra YouTube en un WebView con personalización CSS.
+///
+/// Inyecta JavaScript para ocultar la barra de navegación inferior de YouTube
+/// y permite reproducción de video en pantalla completa con rotación automática.
 class YouTubeScreen extends StatefulWidget {
+  /// Crea un WebView de YouTube con la [initialUrl] dada
   const YouTubeScreen({
     required this.initialUrl,
     super.key,
@@ -38,22 +42,43 @@ class YouTubeScreen extends StatefulWidget {
     this.onFullScreenChanged,
   });
 
+  /// URL inicial a cargar (ej: 'https://www.youtube.com' o '.../shorts')
   final String initialUrl;
+
+  /// Controlador precargado desde el splash (solo para la pestaña principal)
   final WebViewController? preloadedController;
+
+  /// Callback cuando cambia la capacidad de navegar atrás
   final ValueChanged<bool>? onCanGoBackChanged;
+
+  /// Callback cuando entra/sale de pantalla completa
   final ValueChanged<bool>? onFullScreenChanged;
 
   @override
   State<YouTubeScreen> createState() => YouTubeScreenState();
 }
 
-/// Estado del WebView de YouTube con control de navegación y errores
+/// Estado del WebView de YouTube con control de navegación, fullscreen y errores.
+///
+/// Expone métodos públicos como [currentUrl], [navigateToSearch], [goBack]
+/// para ser llamados desde [HomeScreen] vía GlobalKey.
 class YouTubeScreenState extends State<YouTubeScreen> {
+  /// Controlador del WebView (accesible desde el padre vía GlobalKey)
   WebViewController? controller;
+
+  /// Progreso de carga de la página (0-100)
   int _progress = 0;
+
+  /// Mensaje de error mostrado al usuario (null si no hay error)
   String? _errorMessage;
+
+  /// Indica si el video está en modo pantalla completa
   bool _isFullScreen = false;
+
+  /// Widget del reproductor en pantalla completa (proporcionado por Android)
   Widget? _fullScreenWidget;
+
+  /// Callback para salir de pantalla completa
   VoidCallback? _onHideCustomView;
 
   /// Retorna la URL actual del WebView

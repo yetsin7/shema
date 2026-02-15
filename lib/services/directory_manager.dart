@@ -11,12 +11,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n.dart';
 
-/// Gestor de directorios de descarga
+/// Gestor de directorios de descarga para música y videos.
+///
+/// Maneja la persistencia de rutas en SharedPreferences,
+/// la selección de carpetas con FilePicker, y la apertura
+/// de carpetas con OpenFilex. Garantiza que música y videos
+/// se guarden en carpetas diferentes.
 class DirectoryManager {
+  /// Clave de SharedPreferences para la carpeta de música
   static const _musicDirKey = 'music_directory_path';
+
+  /// Clave de SharedPreferences para la carpeta de videos
   static const _videoDirKey = 'video_directory_path';
 
+  /// Ruta actual de la carpeta de música (null si no se ha cargado)
   String? musicDirectory;
+
+  /// Ruta actual de la carpeta de videos (null si no se ha cargado)
   String? videoDirectory;
 
   /// Normaliza una ruta para comparación
