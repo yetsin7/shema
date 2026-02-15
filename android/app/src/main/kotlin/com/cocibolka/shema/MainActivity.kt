@@ -1,4 +1,4 @@
-package com.example.baja_videos
+﻿package com.cocibolka.shema
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -14,8 +14,8 @@ import android.util.Log
 private const val TAG = "Shema_YtDlp"
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.example.baja_videos/ytdlp"
-    private val EVENT_CHANNEL = "com.example.baja_videos/ytdlp_progress"
+    private val CHANNEL = "com.cocibolka.shema/ytdlp"
+    private val EVENT_CHANNEL = "com.cocibolka.shema/ytdlp_progress"
     private var eventSink: EventChannel.EventSink? = null
     private val downloadJobs = mutableMapOf<String, Job>()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -33,7 +33,7 @@ class MainActivity : FlutterActivity() {
         }
 
 
-        // Canal de métodos para control de descargas
+        // Canal de mÃ©todos para control de descargas
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -99,21 +99,22 @@ class MainActivity : FlutterActivity() {
                 if (isAudio) {
                     request.addOption("-x")
                     request.addOption("--audio-format", "mp3")
-                    request.addOption("--audio-quality", "0")
+                    val audioKbps = quality.replace("kbps", "", ignoreCase = true).trim().toIntOrNull()
+                    val audioQuality = if (audioKbps != null && audioKbps > 0) "${audioKbps}K" else "0"
+                    request.addOption("--audio-quality", audioQuality)
                     request.addOption("--embed-thumbnail")
-                    request.addOption("--add-metadata")
-                    Log.d(TAG, "Modo: AUDIO (MP3)")
+                    Log.d(TAG, "Modo: AUDIO (MP3), calidad: $audioQuality")
                 } else {
                     // Descargar video y audio por separado, luego combinar con ffmpeg
                     val height = quality.replace("p", "").toIntOrNull() ?: 720
                     val formatStr = "bestvideo[height<=${height}]+bestaudio/best[height<=${height}]"
                     request.addOption("-f", formatStr)
                     request.addOption("--merge-output-format", "mp4")
-                    request.addOption("--add-metadata")
                     Log.d(TAG, "Modo: VIDEO, formato: $formatStr (merge a mp4 con ffmpeg)")
                 }
 
                 request.addOption("--no-mtime")
+                request.addOption("--no-post-overwrites")
                 request.addOption("--no-playlist")
                 request.addOption("--no-warnings")
                 request.addOption("--newline")
@@ -128,7 +129,7 @@ class MainActivity : FlutterActivity() {
 
                 Log.d(TAG, "Ejecutando YoutubeDL.execute()...")
                 val response = YoutubeDL.getInstance().execute(request, downloadId) { progress, etaInSeconds, line ->
-                    Log.d(TAG, "Progreso: $progress%, ETA: ${etaInSeconds}s, línea: $line")
+                    Log.d(TAG, "Progreso: $progress%, ETA: ${etaInSeconds}s, lÃ­nea: $line")
                     sendEvent(mapOf(
                         "downloadId" to downloadId,
                         "progress" to progress.toDouble(),
@@ -138,7 +139,7 @@ class MainActivity : FlutterActivity() {
                     ))
                 }
 
-                Log.d(TAG, "=== EJECUCIÓN COMPLETADA ===")
+                Log.d(TAG, "=== EJECUCIÃ“N COMPLETADA ===")
                 Log.d(TAG, "Exit code: ${response.exitCode}")
                 Log.d(TAG, "Stdout: ${response.out}")
                 Log.d(TAG, "Stderr: ${response.err}")
@@ -179,13 +180,15 @@ class MainActivity : FlutterActivity() {
         downloadJobs[downloadId] = job
     }
 
-    /// Obtiene información del video sin descargarlo
+    /// Obtiene informaciÃ³n del video sin descargarlo
     private fun getVideoInfo(url: String, result: MethodChannel.Result) {
         scope.launch {
             try {
                 val request = YoutubeDLRequest(url)
                 request.addOption("--dump-json")
                 request.addOption("--no-download")
+                request.addOption("--no-playlist")
+                request.addOption("--no-warnings")
                 val response = YoutubeDL.getInstance().execute(request)
                 withContext(Dispatchers.Main) {
                     result.success(response.out)
@@ -210,7 +213,7 @@ class MainActivity : FlutterActivity() {
         ))
     }
 
-    /// Actualiza yt-dlp a la última versión
+    /// Actualiza yt-dlp a la Ãºltima versiÃ³n
     private fun updateYtDlp(result: MethodChannel.Result) {
         scope.launch {
             try {
@@ -226,7 +229,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    /// Envía eventos al canal de Flutter desde cualquier hilo
+    /// EnvÃ­a eventos al canal de Flutter desde cualquier hilo
     private fun sendEvent(data: Map<String, Any?>) {
         runOnUiThread {
             eventSink?.success(data)
@@ -238,3 +241,4 @@ class MainActivity : FlutterActivity() {
         super.onDestroy()
     }
 }
+

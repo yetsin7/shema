@@ -1,4 +1,5 @@
-﻿import 'dart:async';
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -34,10 +35,7 @@ class ShemaApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('es'),
-        Locale('en'),
-      ],
+      supportedLocales: const [Locale('es'), Locale('en')],
       home: const SplashScreen(),
     );
   }
@@ -64,7 +62,7 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
 
-    // Controlador de animaciÃ³n para el fade del logo
+    // Controlador de animacion para el fade del logo
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -77,11 +75,11 @@ class _SplashScreenState extends State<SplashScreen>
 
     _fadeController.forward();
 
-    // Iniciar precarga y animaciÃ³n de progreso
+    // Iniciar precarga y animacion de progreso
     _startLoading();
   }
 
-  /// Inicia la precarga de YouTube, actualización de yt-dlp y el progreso animado
+  // Inicia la precarga de YouTube, actualizacion de yt-dlp y el progreso animado
   Future<void> _startLoading() async {
     // Precargar YouTube en segundo plano
     if (Platform.isAndroid || Platform.isIOS) {
@@ -130,14 +128,13 @@ class _SplashScreenState extends State<SplashScreen>
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => HomeScreen(
-          preloadedYouTubeController: _preloadedController,
-        ),
+        builder: (_) =>
+            HomeScreen(preloadedYouTubeController: _preloadedController),
       ),
     );
   }
 
-  /// Actualiza yt-dlp a la última versión disponible durante el splash
+  // Actualiza yt-dlp a la ultima version disponible durante el splash
   Future<void> _updateYtDlp() async {
     try {
       debugPrint('[Splash] Buscando actualizaciones de yt-dlp...');
@@ -155,7 +152,7 @@ class _SplashScreenState extends State<SplashScreen>
     }
   }
 
-  /// Precarga el WebViewController de YouTube
+  // Precarga el WebViewController de YouTube
   Future<void> _preloadYouTube() async {
     try {
       final controller = WebViewController()
@@ -322,8 +319,8 @@ class _SplashScreenState extends State<SplashScreen>
                               _progress < 0.5
                                   ? s.splashInitializing
                                   : _progress < 0.95
-                                      ? s.splashLoadingYouTube
-                                      : s.splashReady,
+                                  ? s.splashLoadingYouTube
+                                  : s.splashReady,
                               style: TextStyle(
                                 fontSize: 13,
                                 color: Colors.white.withOpacity(0.8),
@@ -348,7 +345,14 @@ class _SplashScreenState extends State<SplashScreen>
 
 enum MediaKind { audio, video }
 
-enum DownloadStatus { downloading, completed, failed }
+enum DownloadStatus { queued, downloading, completed, failed }
+
+class _QualityOption {
+  const _QualityOption({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
 
 class DownloadTask {
   DownloadTask({
@@ -356,10 +360,11 @@ class DownloadTask {
     required this.kind,
     required this.quality,
     required this.sourceUrl,
+    required this.downloadDirectory,
     required this.title,
     this.thumbnailUrl,
     this.progress = 0,
-    this.status = DownloadStatus.downloading,
+    this.status = DownloadStatus.queued,
     this.filePath,
   });
 
@@ -367,6 +372,7 @@ class DownloadTask {
   final MediaKind kind;
   final String quality;
   final String sourceUrl;
+  final String downloadDirectory;
   String title;
   String? thumbnailUrl;
   double progress;
@@ -377,12 +383,15 @@ class DownloadTask {
 
 /// Servicio que se comunica con yt-dlp via platform channels (Android nativo)
 class YtDlpService {
-  static const _channel = MethodChannel('com.example.baja_videos/ytdlp');
-  static const _eventChannel = EventChannel('com.example.baja_videos/ytdlp_progress');
+  static const _channel = MethodChannel('com.cocibolka.shema/ytdlp');
+  static const _eventChannel = EventChannel(
+    'com.cocibolka.shema/ytdlp_progress',
+  );
 
   /// Stream de eventos de progreso desde el lado nativo
-  Stream<Map<dynamic, dynamic>> get progressStream =>
-      _eventChannel.receiveBroadcastStream().map((e) => e as Map<dynamic, dynamic>);
+  Stream<Map<dynamic, dynamic>> get progressStream => _eventChannel
+      .receiveBroadcastStream()
+      .map((e) => e as Map<dynamic, dynamic>);
 
   /// Inicia una descarga y retorna el downloadId asignado
   Future<String> downloadMedia({
@@ -405,6 +414,14 @@ class YtDlpService {
     await _channel.invokeMethod('cancelDownload', {'downloadId': downloadId});
   }
 
+  /// Obtiene info del video (JSON de yt-dlp --dump-json)
+  Future<String> getVideoInfo(String url) async {
+    final result = await _channel.invokeMethod<String>('getVideoInfo', {
+      'url': url,
+    });
+    return result ?? '';
+  }
+
   /// Actualiza yt-dlp a la última versión disponible
   Future<String> updateYtDlp() async {
     final result = await _channel.invokeMethod<String>('updateYtDlp');
@@ -413,10 +430,14 @@ class YtDlpService {
 }
 
 /// Centro de descargas que usa yt-dlp via platform channels
+/// Limita descargas simultáneas: 10 para video, 20 para música
 class DownloadCenter extends ChangeNotifier {
   DownloadCenter() {
     _listenToProgress();
   }
+
+  static const _maxConcurrentVideo = 10;
+  static const _maxConcurrentAudio = 20;
 
   final List<DownloadTask> _tasks = <DownloadTask>[];
   final YtDlpService _ytDlp = YtDlpService();
@@ -443,12 +464,18 @@ class DownloadCenter extends ChangeNotifier {
       final filePath = event['filePath'] as String?;
       final error = event['error'] as String?;
 
-      debugPrint('[DownloadCenter] Evento recibido: status=$status, progress=$progress, id=$downloadId');
-      debugPrint('[DownloadCenter] line=$line, filePath=$filePath, error=$error');
+      debugPrint(
+        '[DownloadCenter] Evento recibido: status=$status, progress=$progress, id=$downloadId',
+      );
+      debugPrint(
+        '[DownloadCenter] line=$line, filePath=$filePath, error=$error',
+      );
 
       final idx = _tasks.indexWhere((t) => t.id == downloadId);
       if (idx == -1) {
-        debugPrint('[DownloadCenter] WARN: No se encontró tarea con id=$downloadId. IDs actuales: ${_tasks.map((t) => t.id).toList()}');
+        debugPrint(
+          '[DownloadCenter] WARN: No se encontró tarea con id=$downloadId. IDs actuales: ${_tasks.map((t) => t.id).toList()}',
+        );
         return;
       }
 
@@ -464,11 +491,13 @@ class DownloadCenter extends ChangeNotifier {
           if (line.isNotEmpty) {
             if (line.contains('Downloading item')) {
               task.title = line;
-            } else if (line.contains('Downloading webpage') || line.contains('Extracting URL')) {
+            } else if (line.contains('Downloading webpage') ||
+                line.contains('Extracting URL')) {
               task.title = 'Obteniendo info del video...';
             } else if (line.contains('Sleeping')) {
               task.title = 'Esperando (límite del sitio)...';
-            } else if (line.contains('ExtractAudio') || line.contains('Destination:')) {
+            } else if (line.contains('ExtractAudio') ||
+                line.contains('Destination:')) {
               task.title = 'Convirtiendo a MP3...';
               task.progress = 0.92;
             } else if (line.contains('Metadata')) {
@@ -491,16 +520,22 @@ class DownloadCenter extends ChangeNotifier {
           task.filePath = filePath;
           // Mostrar nombre limpio del archivo descargado
           if (filePath != null && filePath.isNotEmpty) {
-            task.title = filePath.split('/').last.replaceAll(RegExp(r'\.\w+$'), '');
+            task.title = filePath
+                .split('/')
+                .last
+                .replaceAll(RegExp(r'\.\w+$'), '');
           }
+          _processQueue();
           break;
         case 'failed':
           task.status = DownloadStatus.failed;
           task.title = '${task.title} - Error: ${error ?? "desconocido"}';
+          _processQueue();
           break;
         case 'cancelled':
           task.status = DownloadStatus.failed;
           task.title = '${task.title} (Cancelado)';
+          _processQueue();
           break;
       }
 
@@ -515,7 +550,63 @@ class DownloadCenter extends ChangeNotifier {
 
   /// Retorna todas las tareas activas (descargando)
   List<DownloadTask> get activeTasks {
-    return _tasks.where((t) => t.status == DownloadStatus.downloading).toList(growable: false);
+    return _tasks
+        .where((t) => t.status == DownloadStatus.downloading)
+        .toList(growable: false);
+  }
+
+  /// Cuenta descargas activas por tipo
+  int _activeCountByKind(MediaKind kind) => _tasks
+      .where((t) => t.kind == kind && t.status == DownloadStatus.downloading)
+      .length;
+
+  /// Inicia las tareas en cola que caben dentro del límite de concurrencia
+  void _processQueue() {
+    for (final kind in MediaKind.values) {
+      final limit = kind == MediaKind.audio
+          ? _maxConcurrentAudio
+          : _maxConcurrentVideo;
+      final active = _activeCountByKind(kind);
+      final available = limit - active;
+      if (available <= 0) continue;
+
+      final queued = _tasks
+          .where((t) => t.kind == kind && t.status == DownloadStatus.queued)
+          .take(available);
+      for (final task in queued) {
+        _startTask(task);
+      }
+    }
+  }
+
+  /// Inicia la descarga real de una tarea
+  void _startTask(DownloadTask task) {
+    task.status = DownloadStatus.downloading;
+    task.title = 'Iniciando descarga...';
+
+    debugPrint(
+      '[DownloadCenter] Iniciando tarea: url=${task.sourceUrl}, kind=${task.kind}, quality=${task.quality}',
+    );
+
+    _ytDlp
+        .downloadMedia(
+          url: task.sourceUrl,
+          quality: task.quality,
+          downloadPath: task.downloadDirectory,
+          isAudio: task.kind == MediaKind.audio,
+        )
+        .then((downloadId) {
+          debugPrint('[DownloadCenter] ID asignado: $downloadId');
+          task.id = downloadId;
+          _safeNotify();
+        })
+        .catchError((e) {
+          debugPrint('[DownloadCenter] ERROR al iniciar: $e');
+          task.status = DownloadStatus.failed;
+          task.title = 'Error al iniciar: $e';
+          _safeNotify();
+          _processQueue();
+        });
   }
 
   /// Cancela una descarga en progreso
@@ -528,6 +619,7 @@ class DownloadCenter extends ChangeNotifier {
     task.title = '${task.title} (Cancelado)';
     _ytDlp.cancelDownload(taskId);
     notifyListeners();
+    _processQueue();
   }
 
   /// Elimina una tarea de la lista y su archivo si existe
@@ -550,9 +642,10 @@ class DownloadCenter extends ChangeNotifier {
 
     _tasks.removeAt(idx);
     notifyListeners();
+    _processQueue();
   }
 
-  /// Encola una descarga usando yt-dlp (via platform channel)
+  /// Encola una descarga. Se iniciará automáticamente cuando haya espacio
   void enqueue({
     required MediaKind kind,
     required String quality,
@@ -560,35 +653,17 @@ class DownloadCenter extends ChangeNotifier {
     required String downloadDirectory,
   }) {
     final task = DownloadTask(
-      id: '', // Se asignará desde el lado nativo
+      id: '',
       kind: kind,
       quality: quality,
       sourceUrl: url,
-      title: 'Iniciando descarga...',
+      downloadDirectory: downloadDirectory,
+      title: 'En cola...',
     );
 
     _tasks.insert(0, task);
     notifyListeners();
-
-    debugPrint('[DownloadCenter] Encolando descarga: url=$url, kind=$kind, quality=$quality, dir=$downloadDirectory');
-
-    // Iniciar descarga via platform channel
-    _ytDlp.downloadMedia(
-      url: url,
-      quality: quality,
-      downloadPath: downloadDirectory,
-      isAudio: kind == MediaKind.audio,
-    ).then((downloadId) {
-      debugPrint('[DownloadCenter] ID asignado por nativo: $downloadId');
-      // Actualizar el ID de la tarea con el asignado por el nativo
-      task.id = downloadId;
-      _safeNotify();
-    }).catchError((e) {
-      debugPrint('[DownloadCenter] ERROR al iniciar descarga: $e');
-      task.status = DownloadStatus.failed;
-      task.title = 'Error al iniciar: $e';
-      _safeNotify();
-    });
+    _processQueue();
   }
 
   /// Actualiza yt-dlp a la última versión
@@ -600,11 +675,9 @@ class DownloadCenter extends ChangeNotifier {
     super.dispose();
   }
 }
+
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({
-    super.key,
-    this.preloadedYouTubeController,
-  });
+  const HomeScreen({super.key, this.preloadedYouTubeController});
 
   final WebViewController? preloadedYouTubeController;
 
@@ -625,22 +698,25 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   String? _musicDirectory;
   String? _videoDirectory;
+  final YtDlpService _ytDlp = YtDlpService();
 
-  static const _videoQualities = <String>[
-    '144p',
-    '240p',
-    '360p',
-    '480p',
-    '720p',
-    '1080p',
-  ];
-  static const _audioQualities = <String>[
-    '64 kbps',
-    '128 kbps',
-    '192 kbps',
-    '256 kbps',
-    '320 kbps',
-  ];
+  static const _qualityFetchTimeout = Duration(seconds: 6);
+  final Map<String, List<_QualityOption>> _qualityCache =
+      <String, List<_QualityOption>>{};
+  final Map<String, Future<List<_QualityOption>>> _qualityPending =
+      <String, Future<List<_QualityOption>>>{};
+
+  static const _qualityPrefetchDebounce = Duration(milliseconds: 900);
+  Timer? _qualityPrefetchTimer;
+  String? _lastPrefetchUrl;
+
+  String _normalizePath(String path) {
+    final unified = path.trim().replaceAll('\\', '/');
+    return unified.replaceAll(RegExp(r'/+$'), '').toLowerCase();
+  }
+
+  bool _isSameDirectory(String a, String b) =>
+      _normalizePath(a) == _normalizePath(b);
 
   @override
   void initState() {
@@ -650,12 +726,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _qualityPrefetchTimer?.cancel();
     _downloadCenter.dispose();
     super.dispose();
   }
 
   /// Retorna la carpeta base por defecto dentro de documentos de la app
   Future<String> _defaultBaseDir() async {
+    if (Platform.isAndroid) {
+      final external = await getExternalStorageDirectory();
+      if (external != null) {
+        return '${external.path}${Platform.pathSeparator}Shema';
+      }
+    }
+
     final appDir = await getApplicationDocumentsDirectory();
     return '${appDir.path}${Platform.pathSeparator}Shema';
   }
@@ -668,15 +752,25 @@ class _HomeScreenState extends State<HomeScreen> {
     final savedMusic = prefs.getString(_musicDirKey);
     final savedVideo = prefs.getString(_videoDirKey);
 
-    final musicPath = (savedMusic == null || savedMusic.trim().isEmpty)
+    var musicPath = (savedMusic == null || savedMusic.trim().isEmpty)
         ? '$baseDir${Platform.pathSeparator}Music'
         : savedMusic.trim();
-    final videoPath = (savedVideo == null || savedVideo.trim().isEmpty)
+    var videoPath = (savedVideo == null || savedVideo.trim().isEmpty)
         ? '$baseDir${Platform.pathSeparator}Videos'
         : savedVideo.trim();
 
+    if (_isSameDirectory(musicPath, videoPath)) {
+      if (savedMusic != null && savedMusic.trim().isNotEmpty) {
+        videoPath = '$baseDir${Platform.pathSeparator}Videos';
+      } else {
+        musicPath = '$baseDir${Platform.pathSeparator}Music';
+      }
+    }
+
     await Directory(musicPath).create(recursive: true);
     await Directory(videoPath).create(recursive: true);
+    await prefs.setString(_musicDirKey, musicPath);
+    await prefs.setString(_videoDirKey, videoPath);
 
     if (!mounted) return;
     setState(() {
@@ -690,50 +784,65 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     final s = S.of(context);
 
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(s.downloadSettingsTitle),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(s.downloadSettingsDescription,
-                style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-            const SizedBox(height: 16),
-            // Carpeta de música
-            _buildFolderRow(
-              icon: Icons.music_note_rounded,
-              color: ShemaColors.musicBlue,
-              label: s.musicFolder,
-              path: _musicDirectory ?? '...',
-              onTap: () {
-                Navigator.pop(dialogContext);
-                _pickFolder(isMusic: true);
-              },
-            ),
-            const SizedBox(height: 12),
-            // Carpeta de videos
-            _buildFolderRow(
-              icon: Icons.videocam_rounded,
-              color: ShemaColors.videoOrange,
-              label: s.videoFolder,
-              path: _videoDirectory ?? '...',
-              onTap: () {
-                Navigator.pop(dialogContext);
-                _pickFolder(isMusic: false);
-              },
+    while (mounted) {
+      final action = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(s.downloadSettingsTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                s.downloadSettingsDescription,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Carpeta de música
+              _buildFolderRow(
+                icon: Icons.music_note_rounded,
+                color: ShemaColors.musicBlue,
+                label: s.musicFolder,
+                path: _musicDirectory ?? '...',
+                onTap: () => Navigator.pop(dialogContext, 'pick_music'),
+                onOpen: () => Navigator.pop(dialogContext, 'pick_music'),
+              ),
+              const SizedBox(height: 12),
+              // Carpeta de videos
+              _buildFolderRow(
+                icon: Icons.videocam_rounded,
+                color: ShemaColors.videoOrange,
+                label: s.videoFolder,
+                path: _videoDirectory ?? '...',
+                onTap: () => Navigator.pop(dialogContext, 'pick_video'),
+                onOpen: () => Navigator.pop(dialogContext, 'pick_video'),
+              ),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(s.accept),
             ),
           ],
         ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(s.accept),
-          ),
-        ],
-      ),
-    );
+      );
+
+      if (action == null || !mounted) return;
+
+      if (action == 'pick_music') {
+        await _pickFolder(isMusic: true);
+      } else if (action == 'pick_video') {
+        await _pickFolder(isMusic: false);
+      } else if (action == 'open_music') {
+        await _openConfiguredFolder(isMusic: true);
+      } else if (action == 'open_video') {
+        await _openConfiguredFolder(isMusic: false);
+      }
+    }
   }
 
   /// Fila de carpeta en el diálogo de configuración
@@ -743,6 +852,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required String label,
     required String path,
     required VoidCallback onTap,
+    required VoidCallback onOpen,
   }) {
     return InkWell(
       onTap: onTap,
@@ -762,14 +872,31 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(path, maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  Text(
+                    path,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
             ),
-            Icon(Icons.folder_open, color: color, size: 20),
+            IconButton(
+              tooltip: S.of(context).openFolderTooltip,
+              onPressed: onOpen,
+              icon: Icon(Icons.folder_open, color: color, size: 20),
+            ),
           ],
         ),
       ),
@@ -783,16 +910,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final selectedPath = await FilePicker.platform.getDirectoryPath(
       dialogTitle: isMusic ? s.changeMusicFolder : s.changeVideoFolder,
-      initialDirectory: initial,
+      initialDirectory: Platform.isAndroid ? null : initial,
     );
 
     if (selectedPath == null || selectedPath.isEmpty) return;
     if (!mounted) return;
 
+    final otherPath = isMusic ? _videoDirectory : _musicDirectory;
+    if (otherPath != null &&
+        otherPath.trim().isNotEmpty &&
+        _isSameDirectory(selectedPath, otherPath)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(s.separateFoldersRequired)));
+      return;
+    }
+
     try {
       await Directory(selectedPath).create(recursive: true);
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(isMusic ? _musicDirKey : _videoDirKey, selectedPath);
+      await prefs.setString(
+        isMusic ? _musicDirKey : _videoDirKey,
+        selectedPath,
+      );
 
       if (!mounted) return;
       setState(() {
@@ -804,15 +944,41 @@ class _HomeScreenState extends State<HomeScreen> {
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(s.folderSet(selectedPath))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(s.folderSet(selectedPath))));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(s.folderSelectError)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(s.folderSelectError)));
     }
+  }
+
+  Future<void> _openConfiguredFolder({required bool isMusic}) async {
+    final s = S.of(context);
+    final target = isMusic ? _musicDirectory : _videoDirectory;
+    final configured = target?.trim();
+
+    if (configured == null || configured.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(s.folderNotConfigured)));
+      return;
+    }
+
+    final directory = Directory(configured);
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+
+    final result = await OpenFilex.open(directory.path);
+    if (!mounted) return;
+    if (result.type == ResultType.done) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(s.cantOpenFolder)));
   }
 
   /// Abre el modal de descarga con campo para pegar link
@@ -833,30 +999,30 @@ class _HomeScreenState extends State<HomeScreen> {
         ? _shortsKey
         : null;
     final currentUrl = await activeKey?.currentState?.currentUrl();
-    if (currentUrl != null && currentUrl.contains('youtube.com/watch')) {
-      urlController.text = currentUrl;
+    if (currentUrl != null && _isLikelyYouTubeVideoUrl(currentUrl)) {
+      urlController.text = _canonicalizeYouTubeUrl(currentUrl);
     }
 
     if (!mounted) return;
 
     final result = await showDialog<Map<String, String>>(
       context: context,
-      builder: (dialogContext) => _DownloadDialog(
-        urlController: urlController,
-      ),
+      builder: (dialogContext) => _DownloadDialog(urlController: urlController),
     );
 
     urlController.dispose();
 
     if (result == null || !mounted) return;
 
-    final url = result['url'] ?? '';
+    final rawUrl = result['url'] ?? '';
     final type = result['type'] ?? 'video';
 
-    if (url.isEmpty) return;
+    if (rawUrl.isEmpty) return;
+
+    final url = _canonicalizeYouTubeUrl(rawUrl);
 
     // Seleccionar calidad
-    final quality = await _pickQuality(type == 'audio');
+    final quality = await _pickQuality(type == 'audio', url);
     if (quality == null || !mounted) return;
 
     final isAudio = type == 'audio';
@@ -915,13 +1081,17 @@ class _HomeScreenState extends State<HomeScreen> {
               curve: Curves.easeInOut,
               padding: EdgeInsets.all(isSelected ? 6 : 4),
               decoration: BoxDecoration(
-                color: isSelected ? color.withOpacity(0.15) : Colors.transparent,
+                color: isSelected
+                    ? color.withOpacity(0.15)
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 isSelected ? activeIcon : icon,
                 size: isSelected ? 24 : 22,
-                color: isSelected ? color : Theme.of(context).colorScheme.onSurfaceVariant,
+                color: isSelected
+                    ? color
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 3),
@@ -932,7 +1102,9 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(
                 fontSize: isSelected ? 11 : 10,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? color : Theme.of(context).colorScheme.onSurfaceVariant,
+                color: isSelected
+                    ? color
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
                 letterSpacing: 0.2,
                 height: 1.1,
               ),
@@ -944,31 +1116,270 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<String?> _pickQuality(bool isAudio) async {
-    final options = isAudio ? _audioQualities : _videoQualities;
-    String selected = options.first;
+  bool _isLikelyYouTubeVideoUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return false;
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return false;
+
+    final host = uri.host.toLowerCase();
+    if (host.contains('youtu.be')) {
+      return uri.pathSegments.isNotEmpty;
+    }
+
+    if (!host.contains('youtube.com')) return false;
+
+    final firstPath = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+    if (firstPath == 'watch') {
+      final videoId = uri.queryParameters['v']?.trim() ?? '';
+      return videoId.isNotEmpty;
+    }
+
+    if (firstPath == 'shorts') {
+      return uri.pathSegments.length >= 2 &&
+          uri.pathSegments[1].trim().isNotEmpty;
+    }
+
+    return false;
+  }
+
+  String _canonicalizeYouTubeUrl(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return trimmed;
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return trimmed;
+
+    final host = uri.host.toLowerCase();
+
+    if (host.contains('youtu.be')) {
+      if (uri.pathSegments.isEmpty) return trimmed;
+      final id = uri.pathSegments.first.trim();
+      if (id.isEmpty) return trimmed;
+      return 'https://www.youtube.com/watch?v=$id';
+    }
+
+    if (!host.contains('youtube.com')) {
+      return uri.removeFragment().toString();
+    }
+
+    final firstPath = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+
+    if (firstPath == 'watch') {
+      final id = uri.queryParameters['v']?.trim() ?? '';
+      if (id.isNotEmpty) {
+        return 'https://www.youtube.com/watch?v=$id';
+      }
+    }
+
+    if (firstPath == 'shorts' && uri.pathSegments.length >= 2) {
+      final id = uri.pathSegments[1].trim();
+      if (id.isNotEmpty) {
+        return 'https://www.youtube.com/shorts/$id';
+      }
+    }
+
+    return uri.removeFragment().toString();
+  }
+
+  void _onWebVideoUrlChanged(String rawUrl) {
+    final canonicalUrl = _canonicalizeYouTubeUrl(rawUrl);
+    if (!_isLikelyYouTubeVideoUrl(canonicalUrl)) return;
+    if (_lastPrefetchUrl == canonicalUrl) return;
+
+    _lastPrefetchUrl = canonicalUrl;
+    _qualityPrefetchTimer?.cancel();
+    _qualityPrefetchTimer = Timer(_qualityPrefetchDebounce, () {
+      unawaited(_prefetchQualitiesForUrl(canonicalUrl));
+    });
+  }
+
+  Future<void> _prefetchQualitiesForUrl(String url) async {
+    try {
+      await Future.wait<void>([
+        _getRealQualities(url, false).then((_) {}),
+        _getRealQualities(url, true).then((_) {}),
+      ]);
+    } catch (_) {
+      // Silent background prefetch failure.
+    }
+  }
+
+  String _qualityCacheKey(String url, bool isAudio) =>
+      '${isAudio ? 'a' : 'v'}::${url.trim()}';
+
+  Future<List<_QualityOption>> _getRealQualities(
+    String url,
+    bool isAudio,
+  ) async {
+    final key = _qualityCacheKey(url, isAudio);
+
+    final cached = _qualityCache[key];
+    if (cached != null && cached.isNotEmpty) return cached;
+
+    final pending = _qualityPending[key];
+    if (pending != null) return pending;
+
+    final future = _fetchRealQualities(
+      url,
+      isAudio,
+    ).timeout(_qualityFetchTimeout, onTimeout: () => const <_QualityOption>[]);
+
+    _qualityPending[key] = future;
+    try {
+      final result = await future;
+      if (result.isNotEmpty) {
+        _qualityCache[key] = result;
+      }
+      return result;
+    } finally {
+      _qualityPending.remove(key);
+    }
+  }
+
+  Future<List<_QualityOption>> _fetchRealQualities(
+    String url,
+    bool isAudio,
+  ) async {
+    final raw = await _ytDlp.getVideoInfo(url);
+    if (raw.trim().isEmpty) return const <_QualityOption>[];
+
+    final decoded = jsonDecode(raw);
+    final root = _extractInfoRoot(decoded);
+    if (root == null) return const <_QualityOption>[];
+
+    final formats = root['formats'];
+    if (formats is! List) return const <_QualityOption>[];
+
+    if (isAudio) {
+      final bitrates = <int>{};
+      for (final item in formats) {
+        if (item is! Map) continue;
+        final vcodec = item['vcodec']?.toString() ?? '';
+        final acodec = item['acodec']?.toString() ?? '';
+        if (vcodec != 'none') continue;
+        if (acodec.isEmpty || acodec == 'none') continue;
+
+        final abr = _asNum(item['abr']) ?? _asNum(item['tbr']);
+        if (abr == null || abr <= 0) continue;
+        bitrates.add(abr.round());
+      }
+
+      final sorted = bitrates.toList()..sort();
+      return sorted
+          .map((b) => _QualityOption(label: '$b kbps', value: '$b kbps'))
+          .toList(growable: false);
+    }
+
+    final heights = <int>{};
+    for (final item in formats) {
+      if (item is! Map) continue;
+      final vcodec = item['vcodec']?.toString() ?? '';
+      if (vcodec.isEmpty || vcodec == 'none') continue;
+      final height = _asInt(item['height']);
+      if (height != null && height > 0) {
+        heights.add(height);
+      }
+    }
+
+    final sorted = heights.toList()..sort();
+    return sorted
+        .map((h) => _QualityOption(label: '${h}p', value: '${h}p'))
+        .toList(growable: false);
+  }
+
+  Future<String?> _pickQuality(bool isAudio, String url) async {
+    final s = S.of(context);
+
+    var closedByCode = false;
+    var cancelledByUser = false;
+    var loadingDialogClosed = false;
+
+    final loadingDialogFuture =
+        showDialog<void>(
+          context: context,
+          barrierDismissible: true,
+          builder: (context) => AlertDialog(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(s.loadingQualities)),
+              ],
+            ),
+          ),
+        ).then((_) {
+          loadingDialogClosed = true;
+          if (!closedByCode) {
+            cancelledByUser = true;
+          }
+        });
+
+    List<_QualityOption> options = const <_QualityOption>[];
+    try {
+      options = await _getRealQualities(url, isAudio);
+    } catch (_) {
+      options = const <_QualityOption>[];
+    } finally {
+      await Future<void>.delayed(Duration.zero);
+      if (mounted && !loadingDialogClosed) {
+        closedByCode = true;
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      await loadingDialogFuture.timeout(
+        const Duration(milliseconds: 300),
+        onTimeout: () {},
+      );
+    }
+
+    if (cancelledByUser) return null;
+
+    if (options.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(s.qualityError)));
+      }
+      return null;
+    }
+
+    String selected = options.first.value;
+
+    if (!mounted) return null;
 
     return showDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocalState) => AlertDialog(
-          title: Text(isAudio ? S.of(context).audioQualityTitle : S.of(context).videoQualityTitle),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: options.map((q) {
-              final isSelected = selected == q;
-              return ListTile(
-                dense: true,
-                leading: Icon(
-                  isSelected
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_unchecked,
-                  color: isSelected ? const Color(0xFF2E7D32) : null,
-                ),
-                title: Text(q),
-                onTap: () => setLocalState(() => selected = q),
-              );
-            }).toList(),
+          title: Text(
+            isAudio
+                ? S.of(context).audioQualityTitle
+                : S.of(context).videoQualityTitle,
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 320,
+            child: ListView(
+              children: options.map((q) {
+                final isSelected = selected == q.value;
+                return ListTile(
+                  dense: true,
+                  leading: Icon(
+                    isSelected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    color: isSelected ? const Color(0xFF2E7D32) : null,
+                  ),
+                  title: Text(q.label),
+                  onTap: () => setLocalState(() => selected = q.value),
+                );
+              }).toList(),
+            ),
           ),
           actions: [
             TextButton(
@@ -983,6 +1394,34 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  Map<String, dynamic>? _extractInfoRoot(dynamic decoded) {
+    if (decoded is! Map) return null;
+    final root = Map<String, dynamic>.from(decoded);
+
+    final type = root['_type']?.toString();
+    final entries = root['entries'];
+    if (type == 'playlist' && entries is List && entries.isNotEmpty) {
+      final first = entries.first;
+      if (first is Map) {
+        return Map<String, dynamic>.from(first);
+      }
+    }
+    return root;
+  }
+
+  num? _asNum(dynamic value) {
+    if (value is num) return value;
+    if (value is String) return num.tryParse(value);
+    return null;
+  }
+
+  int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 
   @override
@@ -1017,203 +1456,228 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         extendBody: false,
         appBar: AppBar(
-        leading: (_currentIndex == 0 || _currentIndex == 1)
-            ? IconButton(
-                tooltip: S.of(context).backTooltip,
-                onPressed: _goBackInWebView,
-                icon: const Icon(Icons.arrow_back),
-              )
-            : null,
-        title: Row(
+          leading: (_currentIndex == 0 || _currentIndex == 1)
+              ? IconButton(
+                  tooltip: S.of(context).backTooltip,
+                  onPressed: _goBackInWebView,
+                  icon: const Icon(Icons.arrow_back),
+                )
+              : null,
+          title: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  'assets/icon_shema.png',
+                  width: 28,
+                  height: 28,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(title),
+            ],
+          ),
+          actions: [
+            IconButton(
+              tooltip: S.of(context).downloadSettingsTooltip,
+              onPressed: _openDownloadSettings,
+              icon: const Icon(Icons.settings_outlined),
+            ),
+            IconButton(
+              tooltip: S.of(context).downloadTooltip,
+              onPressed: _openDownloadOptions,
+              icon: const Icon(Icons.download),
+            ),
+          ],
+        ),
+        body: Column(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                'assets/icon_shema.png',
-                width: 28,
-                height: 28,
-                fit: BoxFit.cover,
+            // Banner de descargas activas visible en todas las pestanas
+            ListenableBuilder(
+              listenable: _downloadCenter,
+              builder: (context, _) {
+                final active = _downloadCenter.activeTasks;
+                if (active.isEmpty) return const SizedBox.shrink();
+
+                return Container(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF1B3A1C)
+                      : const Color(0xFF1B5E20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: active.map((task) {
+                      final percent = (task.progress * 100).toInt();
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        child: Row(
+                          children: [
+                            // Icono de tipo
+                            Icon(
+                              task.kind == MediaKind.audio
+                                  ? Icons.graphic_eq
+                                  : Icons.movie_creation_outlined,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            // Titulo y progreso
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    task.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: task.progress,
+                                      backgroundColor: Colors.white24,
+                                      valueColor:
+                                          const AlwaysStoppedAnimation<Color>(
+                                            Colors.white,
+                                          ),
+                                      minHeight: 4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Porcentaje
+                            Text(
+                              '$percent%',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            // Boton cancelar
+                            IconButton(
+                              onPressed: () => _downloadCenter.cancel(task.id),
+                              icon: const Icon(
+                                Icons.close,
+                                color: Colors.white70,
+                                size: 18,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                              padding: EdgeInsets.zero,
+                              tooltip: S.of(context).cancelDownloadTooltip,
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                );
+              },
+            ),
+            // Contenido principal
+            Expanded(
+              child: IndexedStack(
+                index: _currentIndex,
+                children: [
+                  YouTubeScreen(
+                    key: _youtubeKey,
+                    initialUrl: 'https://www.youtube.com',
+                    preloadedController: widget.preloadedYouTubeController,
+                    onVideoUrlChanged: _onWebVideoUrlChanged,
+                  ),
+                  YouTubeScreen(
+                    key: _shortsKey,
+                    initialUrl: 'https://www.youtube.com/shorts',
+                    onVideoUrlChanged: _onWebVideoUrlChanged,
+                  ),
+                  MusicScreen(
+                    downloadCenter: _downloadCenter,
+                    downloadDirectory: _musicDirectory,
+                  ),
+                  VideosScreen(
+                    downloadCenter: _downloadCenter,
+                    downloadDirectory: _videoDirectory,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 10),
-            Text(title),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: S.of(context).downloadSettingsTooltip,
-            onPressed: _openDownloadSettings,
-            icon: const Icon(Icons.settings_outlined),
-          ),
-          IconButton(
-            tooltip: S.of(context).downloadTooltip,
-            onPressed: _openDownloadOptions,
-            icon: const Icon(Icons.download),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Banner de descargas activas visible en todas las pestanas
-          ListenableBuilder(
-            listenable: _downloadCenter,
-            builder: (context, _) {
-              final active = _downloadCenter.activeTasks;
-              if (active.isEmpty) return const SizedBox.shrink();
-
-              return Container(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFF1B3A1C)
-                    : const Color(0xFF1B5E20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: active.map((task) {
-                    final percent = (task.progress * 100).toInt();
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      child: Row(
-                        children: [
-                          // Icono de tipo
-                          Icon(
-                            task.kind == MediaKind.audio ? Icons.graphic_eq : Icons.movie_creation_outlined,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          // Titulo y progreso
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  task.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                                ),
-                                const SizedBox(height: 3),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: LinearProgressIndicator(
-                                    value: task.progress,
-                                    backgroundColor: Colors.white24,
-                                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                                    minHeight: 4,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Porcentaje
-                          Text(
-                            '$percent%',
-                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(width: 4),
-                          // Boton cancelar
-                          IconButton(
-                            onPressed: () => _downloadCenter.cancel(task.id),
-                            icon: const Icon(Icons.close, color: Colors.white70, size: 18),
-                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                            padding: EdgeInsets.zero,
-                            tooltip: S.of(context).cancelDownloadTooltip,
-                          ),
-                        ],
+        bottomNavigationBar: Builder(
+          builder: (context) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                    blurRadius: 20,
+                    spreadRadius: 0,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: SizedBox(
+                  height: 60,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildNavItem(
+                        index: 0,
+                        icon: Icons.play_circle_outline,
+                        activeIcon: Icons.play_circle,
+                        label: 'YouTube',
+                        color: const Color(0xFFD32F2F),
                       ),
-                    );
-                  }).toList(),
+                      _buildNavItem(
+                        index: 1,
+                        icon: Icons.slow_motion_video_outlined,
+                        activeIcon: Icons.slow_motion_video,
+                        label: 'Shorts',
+                        color: const Color(0xFFFF5722),
+                      ),
+                      _buildNavItem(
+                        index: 2,
+                        icon: Icons.music_note_outlined,
+                        activeIcon: Icons.music_note,
+                        label: 'MP3',
+                        color: const Color(0xFF1565C0),
+                      ),
+                      _buildNavItem(
+                        index: 3,
+                        icon: Icons.video_library_outlined,
+                        activeIcon: Icons.video_library,
+                        label: 'MP4',
+                        color: const Color(0xFFEF6C00),
+                      ),
+                    ],
+                  ),
                 ),
-              );
-            },
-          ),
-          // Contenido principal
-          Expanded(
-            child: IndexedStack(
-              index: _currentIndex,
-              children: [
-                YouTubeScreen(
-                  key: _youtubeKey,
-                  initialUrl: 'https://www.youtube.com',
-                  preloadedController: widget.preloadedYouTubeController,
-                ),
-                YouTubeScreen(
-                  key: _shortsKey,
-                  initialUrl: 'https://www.youtube.com/shorts',
-                ),
-                MusicScreen(
-                  downloadCenter: _downloadCenter,
-                  downloadDirectory: _musicDirectory,
-                ),
-                VideosScreen(
-                  downloadCenter: _downloadCenter,
-                  downloadDirectory: _videoDirectory,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: Builder(
-        builder: (context) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        return Container(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
-              blurRadius: 20,
-              spreadRadius: 0,
-              offset: const Offset(0, -4),
-            ),
-          ],
+              ),
+            );
+          },
         ),
-        child: SafeArea(
-          child: SizedBox(
-            height: 60,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(
-                  index: 0,
-                  icon: Icons.play_circle_outline,
-                  activeIcon: Icons.play_circle,
-                  label: 'YouTube',
-                  color: const Color(0xFFD32F2F),
-                ),
-                _buildNavItem(
-                  index: 1,
-                  icon: Icons.slow_motion_video_outlined,
-                  activeIcon: Icons.slow_motion_video,
-                  label: 'Shorts',
-                  color: const Color(0xFFFF5722),
-                ),
-                _buildNavItem(
-                  index: 2,
-                  icon: Icons.music_note_outlined,
-                  activeIcon: Icons.music_note,
-                  label: 'MP3',
-                  color: const Color(0xFF1565C0),
-                ),
-                _buildNavItem(
-                  index: 3,
-                  icon: Icons.video_library_outlined,
-                  activeIcon: Icons.video_library,
-                  label: 'MP4',
-                  color: const Color(0xFFEF6C00),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-        },
-      ),
       ),
     );
   }
@@ -1278,12 +1742,19 @@ class _DownloadDialogState extends State<_DownloadDialog> {
             // Título
             Row(
               children: [
-                const Icon(Icons.download_rounded, color: Color(0xFF2E7D32), size: 28),
+                const Icon(
+                  Icons.download_rounded,
+                  color: Color(0xFF2E7D32),
+                  size: 28,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     S.of(context).downloadDialogTitle,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 // Botón cerrar
@@ -1291,7 +1762,9 @@ class _DownloadDialogState extends State<_DownloadDialog> {
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.close, size: 22),
                   style: IconButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
                     minimumSize: const Size(32, 32),
                   ),
                 ),
@@ -1305,7 +1778,9 @@ class _DownloadDialogState extends State<_DownloadDialog> {
               controller: widget.urlController,
               decoration: InputDecoration(
                 hintText: S.of(context).downloadUrlHint,
-                hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
                 prefixIcon: const Icon(Icons.link, color: Color(0xFF2E7D32)),
                 suffixIcon: IconButton(
                   tooltip: S.of(context).clearTooltip,
@@ -1316,17 +1791,27 @@ class _DownloadDialogState extends State<_DownloadDialog> {
                 fillColor: Theme.of(context).colorScheme.surfaceContainerLowest,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF2E7D32),
+                    width: 2,
+                  ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
               keyboardType: TextInputType.url,
               maxLines: 1,
@@ -1343,7 +1828,9 @@ class _DownloadDialogState extends State<_DownloadDialog> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF2E7D32),
                 side: const BorderSide(color: Color(0xFF2E7D32)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
@@ -1358,16 +1845,20 @@ class _DownloadDialogState extends State<_DownloadDialog> {
                   child: FilledButton.icon(
                     onPressed: _hasUrl
                         ? () => Navigator.pop(context, {
-                              'url': widget.urlController.text.trim(),
-                              'type': 'video',
-                            })
+                            'url': widget.urlController.text.trim(),
+                            'type': 'video',
+                          })
                         : null,
                     icon: const Icon(Icons.movie_creation_outlined, size: 20),
                     label: const Text('MP4'),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFFFF5722),
-                      disabledBackgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      disabledBackgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                   ),
@@ -1378,16 +1869,20 @@ class _DownloadDialogState extends State<_DownloadDialog> {
                   child: FilledButton.icon(
                     onPressed: _hasUrl
                         ? () => Navigator.pop(context, {
-                              'url': widget.urlController.text.trim(),
-                              'type': 'audio',
-                            })
+                            'url': widget.urlController.text.trim(),
+                            'type': 'audio',
+                          })
                         : null,
                     icon: const Icon(Icons.graphic_eq, size: 20),
                     label: const Text('MP3'),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF1565C0),
-                      disabledBackgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      disabledBackgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                   ),
@@ -1406,10 +1901,12 @@ class YouTubeScreen extends StatefulWidget {
     required this.initialUrl,
     super.key,
     this.preloadedController,
+    this.onVideoUrlChanged,
   });
 
   final String initialUrl;
   final WebViewController? preloadedController;
+  final ValueChanged<String>? onVideoUrlChanged;
 
   @override
   State<YouTubeScreen> createState() => _YouTubeScreenState();
@@ -1435,6 +1932,85 @@ class _YouTubeScreenState extends State<YouTubeScreen> {
       return await _controller!.canGoBack();
     }
     return false;
+  }
+
+  String? _lastNotifiedVideoUrl;
+
+  String? _canonicalVideoUrl(String input) {
+    final uri = Uri.tryParse(input.trim());
+    if (uri == null) return null;
+
+    final host = uri.host.toLowerCase();
+    if (host.contains('youtu.be')) {
+      if (uri.pathSegments.isEmpty) return null;
+      final id = uri.pathSegments.first.trim();
+      if (id.isEmpty) return null;
+      return 'https://www.youtube.com/watch?v=$id';
+    }
+
+    if (!host.contains('youtube.com')) return null;
+
+    final firstPath = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+    if (firstPath == 'watch') {
+      final id = uri.queryParameters['v']?.trim() ?? '';
+      if (id.isEmpty) return null;
+      return 'https://www.youtube.com/watch?v=$id';
+    }
+
+    if (firstPath == 'shorts' && uri.pathSegments.length >= 2) {
+      final id = uri.pathSegments[1].trim();
+      if (id.isEmpty) return null;
+      return 'https://www.youtube.com/shorts/$id';
+    }
+
+    return null;
+  }
+
+  void _notifyVideoUrlChanged(String url) {
+    final canonical = _canonicalVideoUrl(url);
+    if (canonical == null) return;
+    if (_lastNotifiedVideoUrl == canonical) return;
+    _lastNotifiedVideoUrl = canonical;
+    widget.onVideoUrlChanged?.call(canonical);
+  }
+
+  NavigationDelegate _navigationDelegate() {
+    return NavigationDelegate(
+      onProgress: (p) {
+        if (!mounted) return;
+        setState(() {
+          _progress = p;
+          _errorMessage = null;
+        });
+      },
+      onPageStarted: (url) {
+        _notifyVideoUrlChanged(url);
+        if (!mounted) return;
+        setState(() => _errorMessage = null);
+      },
+      onPageFinished: (url) {
+        _notifyVideoUrlChanged(url);
+        if (!mounted) return;
+        _injectCustomizations();
+        setState(() => _progress = 100);
+      },
+      onWebResourceError: (error) {
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'Error: ${error.description}';
+        });
+      },
+      onNavigationRequest: (request) {
+        _notifyVideoUrlChanged(request.url);
+        Future.delayed(const Duration(milliseconds: 800), () {
+          _injectCustomizations();
+        });
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          _injectCustomizations();
+        });
+        return NavigationDecision.navigate;
+      },
+    );
   }
 
   /// Inyecta CSS y JavaScript para personalizar YouTube
@@ -1749,82 +2325,35 @@ class _YouTubeScreenState extends State<YouTubeScreen> {
   @override
   void initState() {
     super.initState();
-    // Inicialización del WebView
 
     if (Platform.isAndroid || Platform.isIOS) {
-      // Si hay un controller precargado, usarlo
-      if (widget.preloadedController != null) {
-        // Usando controller precargado
-        _controller = widget.preloadedController;
+      _controller = widget.preloadedController ?? WebViewController();
 
-        // Inyectar personalizaciones en el controller precargado
-        _injectCustomizations();
+      _controller!
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(Colors.white)
+        ..setNavigationDelegate(_navigationDelegate())
+        ..enableZoom(true);
 
-        setState(() {
-          _progress = 100; // Ya estÃ¡ cargado
-        });
-      } else {
-        // Crear un nuevo controller
-        // Creando nuevo WebViewController
-
-        _controller = WebViewController()
-          ..setJavaScriptMode(JavaScriptMode.unrestricted)
-          ..setBackgroundColor(Colors.white)
-          ..setNavigationDelegate(
-            NavigationDelegate(
-              onProgress: (p) {
-                // Progreso de carga
-                if (!mounted) return;
-                setState(() {
-                  _progress = p;
-                  _errorMessage = null;
-                });
-              },
-              onPageStarted: (url) {
-                // Página iniciada
-                if (!mounted) return;
-                setState(() => _errorMessage = null);
-              },
-              onPageFinished: (url) {
-                // Página finalizada
-                if (!mounted) return;
-
-                // Inyectar personalizaciones cuando la pÃ¡gina termine de cargar
-                _injectCustomizations();
-
-                setState(() => _progress = 100);
-              },
-              onWebResourceError: (error) {
-                // Error de recurso web
-                if (!mounted) return;
-                setState(() {
-                  _errorMessage = 'Error: \${error.description}';
-                });
-              },
-              onNavigationRequest: (request) {
-                // Navegando a nueva URL
-
-                // Inyectar personalizaciones en cada navegaciÃ³n (con delay)
-                Future.delayed(const Duration(milliseconds: 800), () {
-                  _injectCustomizations();
-                });
-                Future.delayed(const Duration(milliseconds: 1500), () {
-                  _injectCustomizations();
-                });
-
-                return NavigationDecision.navigate;
-              },
-            ),
-          )
-          ..enableZoom(true);
-
-        // Cargando URL
-        // Cargar directamente la versiÃ³n mÃ³vil de YouTube para mejor rendimiento
-        final mobileUrl = widget.initialUrl.replaceAll('www.youtube.com', 'm.youtube.com');
+      if (widget.preloadedController == null) {
+        final mobileUrl = widget.initialUrl.replaceAll(
+          'www.youtube.com',
+          'm.youtube.com',
+        );
         _controller!.loadRequest(Uri.parse(mobileUrl));
+      } else {
+        setState(() {
+          _progress = 100;
+        });
+
+        unawaited(() async {
+          final current = await _controller?.currentUrl();
+          if (current != null) {
+            _notifyVideoUrlChanged(current);
+          }
+          _injectCustomizations();
+        }());
       }
-    } else {
-      // Plataforma no soportada para WebView
     }
   }
 
@@ -1834,8 +2363,7 @@ class _YouTubeScreenState extends State<YouTubeScreen> {
       return Stack(
         children: [
           WebViewWidget(controller: _controller!),
-          if (_progress < 100)
-            LinearProgressIndicator(value: _progress / 100),
+          if (_progress < 100) LinearProgressIndicator(value: _progress / 100),
           if (_errorMessage != null)
             Positioned(
               bottom: 0,
@@ -2022,20 +2550,42 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
   Future<void> _openMedia(File file) async {
     if (!await file.exists()) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(S.of(context).fileNotAvailable)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(S.of(context).fileNotAvailable)));
       return;
     }
 
     final result = await OpenFilex.open(file.path);
     if (!mounted) return;
     if (result.type == ResultType.done) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(S.of(context).cantOpenFile)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(S.of(context).cantOpenFile)));
   }
 
+  Future<void> _openCurrentDownloadDirectory() async {
+    final configured = widget.downloadDirectory?.trim();
+    if (configured == null || configured.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(S.of(context).folderNotConfigured)),
+      );
+      return;
+    }
+
+    final directory = Directory(configured);
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+
+    final result = await OpenFilex.open(directory.path);
+    if (!mounted) return;
+    if (result.type == ResultType.done) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(S.of(context).cantOpenFolder)));
+  }
 
   File? _taskFile(DownloadTask task) {
     final path = task.filePath;
@@ -2067,7 +2617,9 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
 
             final files = snapshot.data ?? <FileSystemEntity>[];
             // Filtrar archivos que ya aparecen como tarea completada
-            final uniqueFiles = files.where((f) => !taskFilePaths.contains(f.path)).toList();
+            final uniqueFiles = files
+                .where((f) => !taskFilePaths.contains(f.path))
+                .toList();
             final hasContent = tasks.isNotEmpty || uniqueFiles.isNotEmpty;
 
             if (!hasContent) {
@@ -2099,8 +2651,12 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
   Widget _buildUnifiedCard({DownloadTask? task, File? file}) {
     // Determinar estado y datos
     final bool isTask = task != null;
-    final bool downloading = isTask && task.status == DownloadStatus.downloading;
-    final bool completed = isTask ? task.status == DownloadStatus.completed : true;
+    final bool queued = isTask && task.status == DownloadStatus.queued;
+    final bool downloading =
+        isTask && task.status == DownloadStatus.downloading;
+    final bool completed = isTask
+        ? task.status == DownloadStatus.completed
+        : true;
     final bool failed = isTask && task.status == DownloadStatus.failed;
     final bool isAudio = widget.kind == MediaKind.audio;
 
@@ -2121,7 +2677,10 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
       }
     } else {
       final path = file!.path;
-      name = path.split(Platform.pathSeparator).last.replaceAll(RegExp(r'\.\w+$'), '');
+      name = path
+          .split(Platform.pathSeparator)
+          .last
+          .replaceAll(RegExp(r'\.\w+$'), '');
       sizeMb = (file.statSync().size / (1024 * 1024)).toStringAsFixed(2);
       quality = null;
     }
@@ -2130,15 +2689,19 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     final s = S.of(context);
     final statusText = failed
         ? s.error
+        : queued
+        ? s.queued
         : downloading
-            ? '${(task!.progress * 100).toStringAsFixed(0)}%'
-            : s.completed;
+        ? '${(task.progress * 100).toStringAsFixed(0)}%'
+        : s.completed;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
+        color:
+            Theme.of(context).cardTheme.color ??
+            Theme.of(context).colorScheme.surface,
         border: Border.all(
           color: downloading
               ? widget.iconColor.withValues(alpha: 0.4)
@@ -2184,7 +2747,12 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      _buildStatusChip(statusText, failed, completed && !failed),
+                      _buildStatusChip(
+                        statusText,
+                        failed,
+                        completed && !failed,
+                        queued,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -2199,7 +2767,9 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                           label: quality,
                         ),
                       _buildMetaChip(
-                        icon: isAudio ? Icons.music_note_rounded : Icons.videocam_rounded,
+                        icon: isAudio
+                            ? Icons.music_note_rounded
+                            : Icons.videocam_rounded,
                         label: isAudio ? 'MP3' : 'MP4',
                       ),
                       if (sizeMb != null)
@@ -2209,16 +2779,38 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                         ),
                     ],
                   ),
+                  // En cola: botón para quitar de la cola
+                  if (queued) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () =>
+                            widget.downloadCenter.removeTask(task.id),
+                        icon: const Icon(Icons.close, size: 16),
+                        label: Text(s.cancel),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey.shade600,
+                          side: BorderSide(color: Colors.grey.shade300),
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                        ),
+                      ),
+                    ),
+                  ],
                   // Barra de progreso (solo descargando)
                   if (downloading) ...[
                     const SizedBox(height: 10),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(999),
                       child: LinearProgressIndicator(
-                        value: task!.progress,
+                        value: task.progress,
                         minHeight: 6,
-                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        valueColor: AlwaysStoppedAnimation<Color>(widget.iconColor),
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          widget.iconColor,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -2237,31 +2829,53 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                     ),
                   ],
                   // Error
+                  // Error
                   if (failed) ...[
                     const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () => widget.downloadCenter.removeTask(task!.id),
-                        icon: const Icon(Icons.delete_outline, size: 16),
-                        label: Text(s.delete),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red.shade700,
-                          side: BorderSide(color: Colors.red.shade200),
-                          padding: const EdgeInsets.symmetric(vertical: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () => _retryFailedTask(task),
+                            icon: const Icon(Icons.refresh_rounded, size: 16),
+                            label: Text(s.retry),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: widget.iconColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () =>
+                                widget.downloadCenter.removeTask(task.id),
+                            icon: const Icon(Icons.delete_outline, size: 16),
+                            label: Text(s.delete),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red.shade700,
+                              side: BorderSide(color: Colors.red.shade200),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                  // Completado: botones reproducir y eliminar
                   if (completed && !failed) ...[
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed: mediaFile == null ? null : () => _openMedia(mediaFile),
-                            icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                            onPressed: mediaFile == null
+                                ? null
+                                : () => _openMedia(mediaFile),
+                            icon: const Icon(
+                              Icons.play_arrow_rounded,
+                              size: 18,
+                            ),
                             label: Text(s.play),
                             style: FilledButton.styleFrom(
                               backgroundColor: widget.iconColor,
@@ -2326,7 +2940,9 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     }
 
     // Video completado con thumbnail
-    if (completed && task?.thumbnailUrl != null && task!.thumbnailUrl!.isNotEmpty) {
+    if (completed &&
+        task?.thumbnailUrl != null &&
+        task!.thumbnailUrl!.isNotEmpty) {
       return ClipRRect(
         borderRadius: borderRadius,
         child: Image.network(
@@ -2359,6 +2975,41 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     );
   }
 
+  Future<void> _retryFailedTask(DownloadTask task) async {
+    final dir = widget.downloadDirectory?.trim();
+    if (dir == null || dir.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(S.of(context).folderNotConfigured)),
+      );
+      return;
+    }
+
+    try {
+      await Directory(dir).create(recursive: true);
+      await widget.downloadCenter.removeTask(task.id);
+      widget.downloadCenter.enqueue(
+        kind: task.kind,
+        quality: task.quality,
+        url: task.sourceUrl,
+        downloadDirectory: dir,
+      );
+
+      if (!mounted) return;
+      final label = task.kind == MediaKind.audio ? 'MP3' : 'MP4';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(S.of(context).downloadStarted(label, task.quality)),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(S.of(context).downloadFailed)));
+    }
+  }
+
   /// Confirmación antes de eliminar
   Future<void> _confirmDelete({
     DownloadTask? task,
@@ -2377,9 +3028,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
             child: Text(S.of(context).delete),
           ),
         ],
@@ -2399,9 +3048,9 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     if (!mounted) return;
     await _refresh();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(S.of(context).fileDeleted)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(S.of(context).fileDeleted)));
   }
 
   Widget _buildLibraryHeader() {
@@ -2412,10 +3061,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            widget.iconColor.withOpacity(0.12),
-            widget.tileTint,
-          ],
+          colors: [widget.iconColor.withOpacity(0.12), widget.tileTint],
         ),
         border: Border.all(color: widget.iconColor.withOpacity(0.18)),
       ),
@@ -2458,6 +3104,12 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
               ],
             ),
           ),
+          IconButton(
+            tooltip: S.of(context).openFolderTooltip,
+            onPressed: _openCurrentDownloadDirectory,
+            icon: const Icon(Icons.folder_open_rounded),
+            color: widget.iconColor,
+          ),
         ],
       ),
     );
@@ -2489,11 +3141,18 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     );
   }
 
-  Widget _buildStatusChip(String label, bool failed, bool completed) {
+  Widget _buildStatusChip(
+    String label,
+    bool failed,
+    bool completed,
+    bool queued,
+  ) {
     final Color base = failed
         ? const Color(0xFFC62828)
         : completed
         ? const Color(0xFF2E7D32)
+        : queued
+        ? Colors.grey
         : widget.iconColor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -2513,5 +3172,3 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     );
   }
 }
-
-

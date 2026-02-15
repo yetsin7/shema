@@ -17,4 +17,4 @@
 -dontwarn kotlinx.coroutines.**
 
 # No ofuscar la MainActivity (platform channels)
--keep class com.example.baja_videos.MainActivity { *; }
+-keep class com.cocibolka.shema.MainActivity { *; }
