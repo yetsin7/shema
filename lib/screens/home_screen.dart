@@ -248,7 +248,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 bottom: 0,
                 child: CustomBottomNav(
                   currentIndex: _currentIndex,
-                  onIndexChanged: (index) => setState(() => _currentIndex = index),
+                  onIndexChanged: (index) {
+                    // Si ya está en YouTube y toca el botón otra vez, volver al inicio
+                    if (index == 0 && _currentIndex == 0) {
+                      _youtubeKey.currentState?.controller?.loadRequest(
+                        Uri.parse('https://m.youtube.com'),
+                      );
+                    } else if (index == 1 && _currentIndex == 1) {
+                      _shortsKey.currentState?.controller?.loadRequest(
+                        Uri.parse('https://m.youtube.com/shorts'),
+                      );
+                    }
+                    setState(() => _currentIndex = index);
+                  },
                 ),
               ),
           ],
