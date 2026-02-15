@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter pub get:*)",
+      "Bash(flutter run:*)",
+      "Bash(tee:*)",
+      "Bash(cd:*)",
+      "Bash(flutter clean:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(nc:*)",
+      "WebSearch",
+      "WebFetch(domain:pub.dev)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:medium.com)",
+      "Bash(flutter build:*)",
+      "WebFetch(domain:blog.logrocket.com)",
+      "Bash(adb devices:*)",
+      "Bash(adb -s emulator-5556 logcat:*)",
+      "Bash(adb:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
