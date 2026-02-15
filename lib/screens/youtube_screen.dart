@@ -12,98 +12,19 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 const _youtubeCustomizationsJs = '''
 (function() {
   const style = document.createElement('style');
-  style.id = 'baja-videos-custom-style';
+  style.id = 'shema-custom-style';
   style.textContent = `
-    c3-tab-bar-renderer, ytm-pivot-bar-renderer, ytm-mobile-bottom-bar-renderer {
-      display: none !important; visibility: hidden !important; height: 0 !important;
-      max-height: 0 !important; overflow: hidden !important; margin: 0 !important;
-      padding: 0 !important; position: absolute !important; left: -9999px !important;
-    }
-    ytm-like-button-renderer, ytm-dislike-button-renderer, .like-button-renderer, .dislike-button-renderer {
-      display: none !important; visibility: hidden !important; opacity: 0 !important;
-    }
-    ytm-app, ytm-browse, ytm-single-column-browse-results-renderer, ytm-section-list-renderer,
-    ytm-rich-grid-renderer, ytm-item-section-renderer, ytm-media-item, #contents, #content, #app,
-    ytm-mobile-topbar-renderer ~ * {
-      margin-bottom: 0 !important;
-    }
-    body, html { overflow-x: hidden !important; }
-
-    /* En páginas de video: player visible */
-    body.watch-page .player-container {
-      position: relative !important;
-      z-index: 1 !important;
-    }
-
-    /* Espacio inferior para la barra de navegación flotante (se ajusta con JS) */
-    body { padding-bottom: var(--shema-bottom-inset, 80px) !important; }
-    /* En Shorts: limitar altura al área visible entre AppBar y bottom nav */
-    body.shorts-page ytm-reel-video-renderer,
-    body.shorts-page .reel-video-in-sequence {
-      max-height: var(--shema-visible-height, calc(100vh - 160px)) !important;
+    /* Ocultar solo la barra de navegación inferior de YouTube */
+    ytm-pivot-bar-renderer, ytm-mobile-bottom-bar-renderer {
+      display: none !important;
+      height: 0 !important;
       overflow: hidden !important;
     }
+    body, html { overflow-x: hidden !important; }
   `;
-  const oldStyle = document.getElementById('baja-videos-custom-style');
+  const oldStyle = document.getElementById('shema-custom-style');
   if (oldStyle) oldStyle.remove();
   document.head.appendChild(style);
-  function hideYouTubeElements() {
-    const selectors = ['c3-tab-bar-renderer', 'ytm-pivot-bar-renderer', 'ytm-mobile-bottom-bar-renderer'];
-    selectors.forEach(selector => {
-      document.querySelectorAll(selector).forEach(el => {
-        if (el) {
-          el.style.setProperty('display', 'none', 'important');
-          el.style.setProperty('visibility', 'hidden', 'important');
-          el.style.setProperty('height', '0', 'important');
-          el.style.setProperty('max-height', '0', 'important');
-          el.style.setProperty('overflow', 'hidden', 'important');
-          el.style.setProperty('opacity', '0', 'important');
-        }
-      });
-    });
-  }
-  function removeBottomPadding() {
-    document.querySelectorAll('[style*="padding-bottom"]').forEach(el => {
-      const tag = el.tagName.toLowerCase();
-      if (tag === 'body' || tag === 'html') return;
-      if (tag.includes('sheet') || tag.includes('dialog') || tag.includes('menu')) return;
-      el.style.setProperty('padding-bottom', '0', 'important');
-    });
-  }
-  function ensureMenusWork() {
-    const menuSelectors = ['ytm-bottom-sheet-renderer', 'ytm-menu-renderer', 'ytm-menu-item-renderer',
-      'ytm-menu-service-item-renderer', 'ytm-menu-navigation-item-renderer', 'ytm-unified-share-panel-renderer',
-      'ytm-share-panel-renderer', 'tp-yt-paper-dialog', 'tp-yt-paper-item', 'ytm-sheet-controller',
-      'ytm-overflow-menu-renderer', 'ytm-engagement-panel-section-list-renderer', '[role="dialog"]',
-      '[role="menu"]', '[role="menuitem"]'];
-    menuSelectors.forEach(selector => {
-      document.querySelectorAll(selector).forEach(el => {
-        if (el && el.style) {
-          if (el.style.display === 'none') el.style.display = '';
-          if (el.style.visibility === 'hidden') el.style.visibility = '';
-          if (el.style.opacity === '0') el.style.opacity = '';
-          if (el.style.height === '0' || el.style.height === '0px') el.style.height = '';
-          if (el.style.maxHeight === '0' || el.style.maxHeight === '0px') el.style.maxHeight = '';
-          if (el.style.position === 'absolute' && el.style.left === '-9999px') {
-            el.style.position = ''; el.style.left = '';
-          }
-        }
-      });
-    });
-  }
-  function updatePageClasses() {
-    const path = location.pathname;
-    document.body.classList.toggle('watch-page', path.startsWith('/watch'));
-    document.body.classList.toggle('shorts-page', path.startsWith('/shorts'));
-  }
-  hideYouTubeElements(); removeBottomPadding(); ensureMenusWork(); updatePageClasses();
-  setInterval(() => {
-    hideYouTubeElements(); removeBottomPadding(); ensureMenusWork(); updatePageClasses();
-  }, 500);
-  const observer = new MutationObserver(() => {
-    hideYouTubeElements(); removeBottomPadding(); ensureMenusWork(); updatePageClasses();
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
 })();
 ''';
 
