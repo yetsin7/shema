@@ -2,7 +2,6 @@
 library;
 
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -134,47 +133,14 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Cambia a la pestaña de configuración
   void _openSettings() => setState(() => _currentIndex = 4);
 
-  /// Navega a la pestaña YouTube y abre la búsqueda
-  void _openSearch() {
-    if (_currentIndex != 0) {
-      setState(() => _currentIndex = 0);
+  /// Cambia la pestaña activa; si toca la misma pestaña de YouTube, recarga al inicio
+  void _onTabChanged(int index) {
+    if (index == 0 && _currentIndex == 0) {
+      _youtubeKey.currentState?.controller?.loadRequest(Uri.parse('https://m.youtube.com'));
+    } else if (index == 1 && _currentIndex == 1) {
+      _shortsKey.currentState?.controller?.loadRequest(Uri.parse('https://m.youtube.com/shorts'));
     }
-    // Pequeño delay para asegurar que el WebView esté visible
-    Future.delayed(const Duration(milliseconds: 100), () {
-      _youtubeKey.currentState?.navigateToSearch();
-    });
-  }
-
-  /// Construye la barra de búsqueda en el AppBar
-  Widget _buildSearchBar(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: _openSearch,
-      child: Container(
-        height: 40,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.search, size: 20, color: colorScheme.onSurfaceVariant),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                S.of(context).searchYouTube,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    setState(() => _currentIndex = index);
   }
 
   @override
@@ -267,19 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 bottom: 0,
                 child: CustomBottomNav(
                   currentIndex: _currentIndex,
-                  onIndexChanged: (index) {
-                    // Si ya está en YouTube y toca el botón otra vez, volver al inicio
-                    if (index == 0 && _currentIndex == 0) {
-                      _youtubeKey.currentState?.controller?.loadRequest(
-                        Uri.parse('https://m.youtube.com'),
-                      );
-                    } else if (index == 1 && _currentIndex == 1) {
-                      _shortsKey.currentState?.controller?.loadRequest(
-                        Uri.parse('https://m.youtube.com/shorts'),
-                      );
-                    }
-                    setState(() => _currentIndex = index);
-                  },
+                  onIndexChanged: _onTabChanged,
                 ),
               ),
           ],

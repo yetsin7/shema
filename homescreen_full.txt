@@ -1,0 +1,1006 @@
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key, this.preloadedYouTubeController});
+
+  final WebViewController? preloadedYouTubeController;
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  static const _musicDirKey = 'music_directory_path';
+  static const _videoDirKey = 'video_directory_path';
+
+  final DownloadCenter _downloadCenter = DownloadCenter();
+  final GlobalKey<_YouTubeScreenState> _youtubeKey =
+      GlobalKey<_YouTubeScreenState>();
+  final GlobalKey<_YouTubeScreenState> _shortsKey =
+      GlobalKey<_YouTubeScreenState>();
+
+  int _currentIndex = 0;
+  String? _musicDirectory;
+  String? _videoDirectory;
+  final YtDlpService _ytDlp = YtDlpService();
+
+  static const _qualityFetchTimeout = Duration(seconds: 6);
+  final Map<String, List<_QualityOption>> _qualityCache =
+      <String, List<_QualityOption>>{};
+  final Map<String, Future<List<_QualityOption>>> _qualityPending =
+      <String, Future<List<_QualityOption>>>{};
+
+  static const _qualityPrefetchDebounce = Duration(milliseconds: 900);
+  Timer? _qualityPrefetchTimer;
+  String? _lastPrefetchUrl;
+
+  String _normalizePath(String path) {
+    final unified = path.trim().replaceAll('\\', '/');
+    return unified.replaceAll(RegExp(r'/+$'), '').toLowerCase();
+  }
+
+  bool _isSameDirectory(String a, String b) =>
+      _normalizePath(a) == _normalizePath(b);
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadDirectories());
+  }
+
+  @override
+  void dispose() {
+    _qualityPrefetchTimer?.cancel();
+    _downloadCenter.dispose();
+    super.dispose();
+  }
+
+  /// Retorna la carpeta base por defecto dentro de documentos de la app
+  Future<String> _defaultBaseDir() async {
+    if (Platform.isAndroid) {
+      final external = await getExternalStorageDirectory();
+      if (external != null) {
+        return '${external.path}${Platform.pathSeparator}Shema';
+      }
+    }
+
+    final appDir = await getApplicationDocumentsDirectory();
+    return '${appDir.path}${Platform.pathSeparator}Shema';
+  }
+
+  /// Carga las carpetas de música y video desde preferencias
+  Future<void> _loadDirectories() async {
+    final prefs = await SharedPreferences.getInstance();
+    final baseDir = await _defaultBaseDir();
+
+    final savedMusic = prefs.getString(_musicDirKey);
+    final savedVideo = prefs.getString(_videoDirKey);
+
+    var musicPath = (savedMusic == null || savedMusic.trim().isEmpty)
+        ? '$baseDir${Platform.pathSeparator}Music'
+        : savedMusic.trim();
+    var videoPath = (savedVideo == null || savedVideo.trim().isEmpty)
+        ? '$baseDir${Platform.pathSeparator}Videos'
+        : savedVideo.trim();
+
+    if (_isSameDirectory(musicPath, videoPath)) {
+      if (savedMusic != null && savedMusic.trim().isNotEmpty) {
+        videoPath = '$baseDir${Platform.pathSeparator}Videos';
+      } else {
+        musicPath = '$baseDir${Platform.pathSeparator}Music';
+      }
+    }
+
+    await Directory(musicPath).create(recursive: true);
+    await Directory(videoPath).create(recursive: true);
+    await prefs.setString(_musicDirKey, musicPath);
+    await prefs.setString(_videoDirKey, videoPath);
+
+    if (!mounted) return;
+    setState(() {
+      _musicDirectory = musicPath;
+      _videoDirectory = videoPath;
+    });
+  }
+
+  /// Abre el diálogo de configuración con carpetas separadas para música y videos
+  Future<void> _openDownloadSettings() async {
+    if (!mounted) return;
+    final s = S.of(context);
+
+    while (mounted) {
+      final action = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(s.downloadSettingsTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                s.downloadSettingsDescription,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Carpeta de música
+              _buildFolderRow(
+                icon: Icons.music_note_rounded,
+                color: ShemaColors.musicBlue,
+                label: s.musicFolder,
+                path: _musicDirectory ?? '...',
+                onTap: () => Navigator.pop(dialogContext, 'pick_music'),
+                onOpen: () => Navigator.pop(dialogContext, 'pick_music'),
+              ),
+              const SizedBox(height: 12),
+              // Carpeta de videos
+              _buildFolderRow(
+                icon: Icons.videocam_rounded,
+                color: ShemaColors.videoOrange,
+                label: s.videoFolder,
+                path: _videoDirectory ?? '...',
+                onTap: () => Navigator.pop(dialogContext, 'pick_video'),
+                onOpen: () => Navigator.pop(dialogContext, 'pick_video'),
+              ),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(s.accept),
+            ),
+          ],
+        ),
+      );
+
+      if (action == null || !mounted) return;
+
+      if (action == 'pick_music') {
+        await _pickFolder(isMusic: true);
+      } else if (action == 'pick_video') {
+        await _pickFolder(isMusic: false);
+      } else if (action == 'open_music') {
+        await _openConfiguredFolder(isMusic: true);
+      } else if (action == 'open_video') {
+        await _openConfiguredFolder(isMusic: false);
+      }
+    }
+  }
+
+  /// Fila de carpeta en el diálogo de configuración
+  Widget _buildFolderRow({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required String path,
+    required VoidCallback onTap,
+    required VoidCallback onOpen,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+          color: color.withValues(alpha: 0.08),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    path,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: S.of(context).openFolderTooltip,
+              onPressed: onOpen,
+              icon: Icon(Icons.folder_open, color: color, size: 20),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Selector de carpeta para música o video
+  Future<void> _pickFolder({required bool isMusic}) async {
+    final s = S.of(context);
+    final initial = isMusic ? _musicDirectory : _videoDirectory;
+
+    final selectedPath = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: isMusic ? s.changeMusicFolder : s.changeVideoFolder,
+      initialDirectory: Platform.isAndroid ? null : initial,
+    );
+
+    if (selectedPath == null || selectedPath.isEmpty) return;
+    if (!mounted) return;
+
+    final otherPath = isMusic ? _videoDirectory : _musicDirectory;
+    if (otherPath != null &&
+        otherPath.trim().isNotEmpty &&
+        _isSameDirectory(selectedPath, otherPath)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(s.separateFoldersRequired)));
+      return;
+    }
+
+    try {
+      await Directory(selectedPath).create(recursive: true);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        isMusic ? _musicDirKey : _videoDirKey,
+        selectedPath,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        if (isMusic) {
+          _musicDirectory = selectedPath;
+        } else {
+          _videoDirectory = selectedPath;
+        }
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(s.folderSet(selectedPath))));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(s.folderSelectError)));
+    }
+  }
+
+  Future<void> _openConfiguredFolder({required bool isMusic}) async {
+    final s = S.of(context);
+    final target = isMusic ? _musicDirectory : _videoDirectory;
+    final configured = target?.trim();
+
+    if (configured == null || configured.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(s.folderNotConfigured)));
+      return;
+    }
+
+    final directory = Directory(configured);
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+
+    final result = await OpenFilex.open(directory.path);
+    if (!mounted) return;
+    if (result.type == ResultType.done) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(s.cantOpenFolder)));
+  }
+
+  /// Abre el modal de descarga con campo para pegar link
+  Future<void> _openDownloadOptions() async {
+    if (_musicDirectory == null || _videoDirectory == null) {
+      await _openDownloadSettings();
+      if (_musicDirectory == null || _videoDirectory == null || !mounted) {
+        return;
+      }
+    }
+
+    final urlController = TextEditingController();
+
+    // Intentar obtener la URL actual del WebView como valor inicial
+    final activeKey = _currentIndex == 0
+        ? _youtubeKey
+        : _currentIndex == 1
+        ? _shortsKey
+        : null;
+    final currentUrl = await activeKey?.currentState?.currentUrl();
+    if (currentUrl != null && _isLikelyYouTubeVideoUrl(currentUrl)) {
+      urlController.text = _canonicalizeYouTubeUrl(currentUrl);
+    }
+
+    if (!mounted) return;
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => _DownloadDialog(urlController: urlController),
+    );
+
+    urlController.dispose();
+
+    if (result == null || !mounted) return;
+
+    final rawUrl = result['url'] ?? '';
+    final type = result['type'] ?? 'video';
+
+    if (rawUrl.isEmpty) return;
+
+    final url = _canonicalizeYouTubeUrl(rawUrl);
+
+    // Seleccionar calidad
+    final quality = await _pickQuality(type == 'audio', url);
+    if (quality == null || !mounted) return;
+
+    final isAudio = type == 'audio';
+    _downloadCenter.enqueue(
+      kind: isAudio ? MediaKind.audio : MediaKind.video,
+      quality: quality,
+      url: url,
+      downloadDirectory: isAudio ? _musicDirectory! : _videoDirectory!,
+    );
+
+    if (!mounted) return;
+    final label = type == 'audio' ? 'MP3' : 'MP4';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(S.of(context).downloadStarted(label, quality))),
+    );
+  }
+
+  /// Navega hacia atrÃ¡s en el historial del WebView
+  Future<void> _goBackInWebView() async {
+    final activeKey = _currentIndex == 0
+        ? _youtubeKey
+        : _currentIndex == 1
+        ? _shortsKey
+        : null;
+
+    final state = activeKey?.currentState;
+    if (state != null) {
+      final canGoBack = await state.canGoBack();
+      if (canGoBack) {
+        await state.goBack();
+      }
+    }
+  }
+
+  /// Construye un item de navegaciÃ³n personalizado
+  Widget _buildNavItem({
+    required int index,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    required Color color,
+  }) {
+    final isSelected = _currentIndex == index;
+
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _currentIndex = index),
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Icono con animaciÃ³n
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              padding: EdgeInsets.all(isSelected ? 6 : 4),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? color.withOpacity(0.15)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                isSelected ? activeIcon : icon,
+                size: isSelected ? 24 : 22,
+                color: isSelected
+                    ? color
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 3),
+            // Label con animaciÃ³n
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              style: TextStyle(
+                fontSize: isSelected ? 11 : 10,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected
+                    ? color
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+                letterSpacing: 0.2,
+                height: 1.1,
+              ),
+              child: Text(label),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _isLikelyYouTubeVideoUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return false;
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return false;
+
+    final host = uri.host.toLowerCase();
+    if (host.contains('youtu.be')) {
+      return uri.pathSegments.isNotEmpty;
+    }
+
+    if (!host.contains('youtube.com')) return false;
+
+    final firstPath = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+    if (firstPath == 'watch') {
+      final videoId = uri.queryParameters['v']?.trim() ?? '';
+      return videoId.isNotEmpty;
+    }
+
+    if (firstPath == 'shorts') {
+      return uri.pathSegments.length >= 2 &&
+          uri.pathSegments[1].trim().isNotEmpty;
+    }
+
+    return false;
+  }
+
+  String _canonicalizeYouTubeUrl(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return trimmed;
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return trimmed;
+
+    final host = uri.host.toLowerCase();
+
+    if (host.contains('youtu.be')) {
+      if (uri.pathSegments.isEmpty) return trimmed;
+      final id = uri.pathSegments.first.trim();
+      if (id.isEmpty) return trimmed;
+      return 'https://www.youtube.com/watch?v=$id';
+    }
+
+    if (!host.contains('youtube.com')) {
+      return uri.removeFragment().toString();
+    }
+
+    final firstPath = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
+
+    if (firstPath == 'watch') {
+      final id = uri.queryParameters['v']?.trim() ?? '';
+      if (id.isNotEmpty) {
+        return 'https://www.youtube.com/watch?v=$id';
+      }
+    }
+
+    if (firstPath == 'shorts' && uri.pathSegments.length >= 2) {
+      final id = uri.pathSegments[1].trim();
+      if (id.isNotEmpty) {
+        return 'https://www.youtube.com/shorts/$id';
+      }
+    }
+
+    return uri.removeFragment().toString();
+  }
+
+  void _onWebVideoUrlChanged(String rawUrl) {
+    final canonicalUrl = _canonicalizeYouTubeUrl(rawUrl);
+    if (!_isLikelyYouTubeVideoUrl(canonicalUrl)) return;
+    if (_lastPrefetchUrl == canonicalUrl) return;
+
+    _lastPrefetchUrl = canonicalUrl;
+    _qualityPrefetchTimer?.cancel();
+    _qualityPrefetchTimer = Timer(_qualityPrefetchDebounce, () {
+      unawaited(_prefetchQualitiesForUrl(canonicalUrl));
+    });
+  }
+
+  Future<void> _prefetchQualitiesForUrl(String url) async {
+    try {
+      await Future.wait<void>([
+        _getRealQualities(url, false).then((_) {}),
+        _getRealQualities(url, true).then((_) {}),
+      ]);
+    } catch (_) {
+      // Silent background prefetch failure.
+    }
+  }
+
+  String _qualityCacheKey(String url, bool isAudio) =>
+      '${isAudio ? 'a' : 'v'}::${url.trim()}';
+
+  Future<List<_QualityOption>> _getRealQualities(
+    String url,
+    bool isAudio,
+  ) async {
+    final key = _qualityCacheKey(url, isAudio);
+
+    final cached = _qualityCache[key];
+    if (cached != null && cached.isNotEmpty) return cached;
+
+    final pending = _qualityPending[key];
+    if (pending != null) return pending;
+
+    final future = _fetchRealQualities(
+      url,
+      isAudio,
+    ).timeout(_qualityFetchTimeout, onTimeout: () => const <_QualityOption>[]);
+
+    _qualityPending[key] = future;
+    try {
+      final result = await future;
+      if (result.isNotEmpty) {
+        _qualityCache[key] = result;
+      }
+      return result;
+    } finally {
+      _qualityPending.remove(key);
+    }
+  }
+
+  Future<List<_QualityOption>> _fetchRealQualities(
+    String url,
+    bool isAudio,
+  ) async {
+    final raw = await _ytDlp.getVideoInfo(url);
+    if (raw.trim().isEmpty) return const <_QualityOption>[];
+
+    final decoded = jsonDecode(raw);
+    final root = _extractInfoRoot(decoded);
+    if (root == null) return const <_QualityOption>[];
+
+    final formats = root['formats'];
+    if (formats is! List) return const <_QualityOption>[];
+
+    if (isAudio) {
+      final bitrates = <int>{};
+      for (final item in formats) {
+        if (item is! Map) continue;
+        final vcodec = item['vcodec']?.toString() ?? '';
+        final acodec = item['acodec']?.toString() ?? '';
+        if (vcodec != 'none') continue;
+        if (acodec.isEmpty || acodec == 'none') continue;
+
+        final abr = _asNum(item['abr']) ?? _asNum(item['tbr']);
+        if (abr == null || abr <= 0) continue;
+        bitrates.add(abr.round());
+      }
+
+      final sorted = bitrates.toList()..sort();
+      return sorted
+          .map((b) => _QualityOption(label: '$b kbps', value: '$b kbps'))
+          .toList(growable: false);
+    }
+
+    final heights = <int>{};
+    for (final item in formats) {
+      if (item is! Map) continue;
+      final vcodec = item['vcodec']?.toString() ?? '';
+      if (vcodec.isEmpty || vcodec == 'none') continue;
+      final height = _asInt(item['height']);
+      if (height != null && height > 0) {
+        heights.add(height);
+      }
+    }
+
+    final sorted = heights.toList()..sort();
+    return sorted
+        .map((h) => _QualityOption(label: '${h}p', value: '${h}p'))
+        .toList(growable: false);
+  }
+
+  Future<String?> _pickQuality(bool isAudio, String url) async {
+    final s = S.of(context);
+
+    var closedByCode = false;
+    var cancelledByUser = false;
+    var loadingDialogClosed = false;
+
+    final loadingDialogFuture =
+        showDialog<void>(
+          context: context,
+          barrierDismissible: true,
+          builder: (context) => AlertDialog(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(s.loadingQualities)),
+              ],
+            ),
+          ),
+        ).then((_) {
+          loadingDialogClosed = true;
+          if (!closedByCode) {
+            cancelledByUser = true;
+          }
+        });
+
+    List<_QualityOption> options = const <_QualityOption>[];
+    try {
+      options = await _getRealQualities(url, isAudio);
+    } catch (_) {
+      options = const <_QualityOption>[];
+    } finally {
+      await Future<void>.delayed(Duration.zero);
+      if (mounted && !loadingDialogClosed) {
+        closedByCode = true;
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      await loadingDialogFuture.timeout(
+        const Duration(milliseconds: 300),
+        onTimeout: () {},
+      );
+    }
+
+    if (cancelledByUser) return null;
+
+    if (options.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(s.qualityError)));
+      }
+      return null;
+    }
+
+    String selected = options.first.value;
+
+    if (!mounted) return null;
+
+    return showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocalState) => AlertDialog(
+          title: Text(
+            isAudio
+                ? S.of(context).audioQualityTitle
+                : S.of(context).videoQualityTitle,
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 320,
+            child: ListView(
+              children: options.map((q) {
+                final isSelected = selected == q.value;
+                return ListTile(
+                  dense: true,
+                  leading: Icon(
+                    isSelected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    color: isSelected ? const Color(0xFF2E7D32) : null,
+                  ),
+                  title: Text(q.label),
+                  onTap: () => setLocalState(() => selected = q.value),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(S.of(context).cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, selected),
+              child: Text(S.of(context).accept),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Map<String, dynamic>? _extractInfoRoot(dynamic decoded) {
+    if (decoded is! Map) return null;
+    final root = Map<String, dynamic>.from(decoded);
+
+    final type = root['_type']?.toString();
+    final entries = root['entries'];
+    if (type == 'playlist' && entries is List && entries.isNotEmpty) {
+      final first = entries.first;
+      if (first is Map) {
+        return Map<String, dynamic>.from(first);
+      }
+    }
+    return root;
+  }
+
+  num? _asNum(dynamic value) {
+    if (value is num) return value;
+    if (value is String) return num.tryParse(value);
+    return null;
+  }
+
+  int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const title = 'Shema';
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        // Solo interceptar en YouTube y Shorts
+        if (_currentIndex == 0 || _currentIndex == 1) {
+          final activeKey = _currentIndex == 0 ? _youtubeKey : _shortsKey;
+          final state = activeKey.currentState;
+
+          if (state != null && state._controller != null) {
+            final canGoBack = await state._controller!.canGoBack();
+            if (canGoBack) {
+              // Hay historial, volver atrÃ¡s en el WebView
+              await state._controller!.goBack();
+              return;
+            }
+          }
+        }
+
+        // Si no hay historial o estÃ¡ en otra pestaÃ±a, cerrar la app
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        extendBody: false,
+        appBar: AppBar(
+          leading: (_currentIndex == 0 || _currentIndex == 1)
+              ? IconButton(
+                  tooltip: S.of(context).backTooltip,
+                  onPressed: _goBackInWebView,
+                  icon: const Icon(Icons.arrow_back),
+                )
+              : null,
+          title: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  'assets/icon_shema.png',
+                  width: 28,
+                  height: 28,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(title),
+            ],
+          ),
+          actions: [
+            IconButton(
+              tooltip: S.of(context).downloadSettingsTooltip,
+              onPressed: _openDownloadSettings,
+              icon: const Icon(Icons.settings_outlined),
+            ),
+            IconButton(
+              tooltip: S.of(context).downloadTooltip,
+              onPressed: _openDownloadOptions,
+              icon: const Icon(Icons.download),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            // Banner de descargas activas visible en todas las pestanas
+            ListenableBuilder(
+              listenable: _downloadCenter,
+              builder: (context, _) {
+                final active = _downloadCenter.activeTasks;
+                if (active.isEmpty) return const SizedBox.shrink();
+
+                return Container(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF1B3A1C)
+                      : const Color(0xFF1B5E20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: active.map((task) {
+                      final percent = (task.progress * 100).toInt();
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        child: Row(
+                          children: [
+                            // Icono de tipo
+                            Icon(
+                              task.kind == MediaKind.audio
+                                  ? Icons.graphic_eq
+                                  : Icons.movie_creation_outlined,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            // Titulo y progreso
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    task.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: task.progress,
+                                      backgroundColor: Colors.white24,
+                                      valueColor:
+                                          const AlwaysStoppedAnimation<Color>(
+                                            Colors.white,
+                                          ),
+                                      minHeight: 4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Porcentaje
+                            Text(
+                              '$percent%',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            // Boton cancelar
+                            IconButton(
+                              onPressed: () => _downloadCenter.cancel(task.id),
+                              icon: const Icon(
+                                Icons.close,
+                                color: Colors.white70,
+                                size: 18,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                              padding: EdgeInsets.zero,
+                              tooltip: S.of(context).cancelDownloadTooltip,
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                );
+              },
+            ),
+            // Contenido principal
+            Expanded(
+              child: IndexedStack(
+                index: _currentIndex,
+                children: [
+                  YouTubeScreen(
+                    key: _youtubeKey,
+                    initialUrl: 'https://www.youtube.com',
+                    preloadedController: widget.preloadedYouTubeController,
+                    onVideoUrlChanged: _onWebVideoUrlChanged,
+                  ),
+                  YouTubeScreen(
+                    key: _shortsKey,
+                    initialUrl: 'https://www.youtube.com/shorts',
+                    onVideoUrlChanged: _onWebVideoUrlChanged,
+                  ),
+                  MusicScreen(
+                    downloadCenter: _downloadCenter,
+                    downloadDirectory: _musicDirectory,
+                  ),
+                  VideosScreen(
+                    downloadCenter: _downloadCenter,
+                    downloadDirectory: _videoDirectory,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: Builder(
+          builder: (context) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                    blurRadius: 20,
+                    spreadRadius: 0,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: SizedBox(
+                  height: 60,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildNavItem(
+                        index: 0,
+                        icon: Icons.play_circle_outline,
+                        activeIcon: Icons.play_circle,
+                        label: 'YouTube',
+                        color: const Color(0xFFD32F2F),
+                      ),
+                      _buildNavItem(
+                        index: 1,
+                        icon: Icons.slow_motion_video_outlined,
+                        activeIcon: Icons.slow_motion_video,
+                        label: 'Shorts',
+                        color: const Color(0xFFFF5722),
+                      ),
+                      _buildNavItem(
+                        index: 2,
+                        icon: Icons.music_note_outlined,
+                        activeIcon: Icons.music_note,
+                        label: 'MP3',
+                        color: const Color(0xFF1565C0),
+                      ),
+                      _buildNavItem(
+                        index: 3,
+                        icon: Icons.video_library_outlined,
+                        activeIcon: Icons.video_library,
+                        label: 'MP4',
+                        color: const Color(0xFFEF6C00),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}

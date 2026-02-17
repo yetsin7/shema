@@ -128,10 +128,12 @@ class MainActivity : FlutterActivity() {
                 } else {
                     // Descargar video y audio por separado, luego combinar con ffmpeg
                     val height = quality.replace("p", "").toIntOrNull() ?: 720
-                    val formatStr = "bestvideo[height=${height}]+bestaudio/best[height=${height}]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]"
+                    // Priorizamos formatos que ya tengan video Y audio (pre-muxed) para evitar el paso lento de merge con ffmpeg
+                    // Si no existe (ej: 1080p suele ser video-only), bajamos separado y unimos.
+                    val formatStr = "best[height=${height}][acodec!=none][vcodec!=none]/bestvideo[height=${height}]+bestaudio/best[height<=${height}][acodec!=none][vcodec!=none]/bestvideo[height<=${height}]+bestaudio"
                     request.addOption("-f", formatStr)
                     request.addOption("--merge-output-format", "mp4")
-                    Log.d(TAG, "Modo: VIDEO, formato: $formatStr (merge a mp4 con ffmpeg)")
+                    Log.d(TAG, "Modo: VIDEO, formato: $formatStr (intenta directo, fallback a merge)")
                 }
 
                 request.addOption("--no-mtime")
@@ -142,6 +144,11 @@ class MainActivity : FlutterActivity() {
                 request.addOption("--no-warnings")
                 request.addOption("--newline")
                 request.addOption("-o", "${outputDir.absolutePath}/%(title)s.%(ext)s")
+                
+                // Optimización tipo uTorrent: Descargas paralelas (split requests)
+                // Usamos 8 fragmentos concurrentes para maximizar la velocidad
+                request.addOption("-N", "8")
+                request.addOption("--concurrent-fragments", "8")
 
                 sendEvent(mapOf(
                     "downloadId" to downloadId,

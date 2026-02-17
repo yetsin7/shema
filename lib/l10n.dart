@@ -31,10 +31,10 @@ class S {
   String get cancel => _isEs ? 'Cancelar' : 'Cancel';
   String get accept => _isEs ? 'Aceptar' : 'Accept';
   String get delete => _isEs ? 'Eliminar' : 'Delete';
-  String get play => _isEs ? 'Reproducir' : 'Play';
+  String get play => _isEs ? 'Escuchar' : 'Play';
   String get retry => _isEs ? 'Reintentar' : 'Retry';
   String get error => 'Error';
-  String get completed => _isEs ? 'Completado' : 'Completed';
+  String get completed => _isEs ? 'Listo' : 'Done';
   String get queued => _isEs ? 'En cola' : 'Queued';
 
   // ===== SPLASH =====
@@ -73,7 +73,7 @@ class S {
   String get waitingSiteLimit =>
       _isEs ? 'Esperando (lÃ­mite del sitio)...' : 'Waiting (site limit)...';
   String get convertingToMp3 =>
-      _isEs ? 'Convirtiendo a MP3...' : 'Converting to MP3...';
+      _isEs ? 'Obteniendo audio...' : 'Getting audio...';
   String get addingMetadata =>
       _isEs ? 'Agregando metadata...' : 'Adding metadata...';
   String get addingCover =>

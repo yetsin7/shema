@@ -8,25 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
-/// Script JS que oculta elementos de YouTube y mantiene los menús funcionales
-const _youtubeCustomizationsJs = '''
-(function() {
-  const style = document.createElement('style');
-  style.id = 'shema-custom-style';
-  style.textContent = `
-    /* Ocultar solo la barra de navegación inferior de YouTube */
-    ytm-pivot-bar-renderer, ytm-mobile-bottom-bar-renderer {
-      display: none !important;
-      height: 0 !important;
-      overflow: hidden !important;
-    }
-    body, html { overflow-x: hidden !important; }
-  `;
-  const oldStyle = document.getElementById('shema-custom-style');
-  if (oldStyle) oldStyle.remove();
-  document.head.appendChild(style);
-})();
-''';
+import '../utils/youtube_js.dart';
+import '../widgets/webview_error_banner.dart';
 
 /// Widget que muestra YouTube en un WebView con personalización CSS.
 ///
@@ -156,7 +139,7 @@ class YouTubeScreenState extends State<YouTubeScreen> {
   /// Inyecta CSS y JavaScript para personalizar la interfaz de YouTube
   Future<void> _injectCustomizations() async {
     if (controller == null) return;
-    try { await controller!.runJavaScript(_youtubeCustomizationsJs); } catch (_) {}
+    try { await controller!.runJavaScript(youtubeCustomizationsJs); } catch (_) {}
     _injectDimensions();
   }
 
@@ -253,31 +236,12 @@ class YouTubeScreenState extends State<YouTubeScreen> {
         WebViewWidget(controller: controller!),
         if (_progress < 100) LinearProgressIndicator(value: _progress / 100),
         if (_errorMessage != null)
-          Positioned(
-            bottom: 0, left: 0, right: 0,
-            child: Container(
-              color: Colors.red.shade100,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  Expanded(child: Text(_errorMessage!,
-                    style: TextStyle(color: Colors.red.shade900, fontSize: 13))),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() => _errorMessage = null);
-                      controller?.reload();
-                    },
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Recargar'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade700, foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      textStyle: const TextStyle(fontSize: 13)),
-                  ),
-                ],
-              ),
-            ),
+          WebViewErrorBanner(
+            message: _errorMessage!,
+            onReload: () {
+              setState(() => _errorMessage = null);
+              controller?.reload();
+            },
           ),
       ],
     );

@@ -4,11 +4,12 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart' as explode;
 
 import 'download_service.dart';
 import '../l10n.dart';
+import '../widgets/countdown_loading_dialog.dart';
 
 /// Opción de calidad disponible para un video o audio
 class QualityOption {
@@ -25,7 +26,7 @@ class QualityPicker {
 
   final YtDlpService _ytDlp;
 
-  static const _qualityFetchTimeout = Duration(seconds: 45);
+  static const _qualityFetchTimeout = Duration(seconds: 7);
   static const _qualityPrefetchDebounce = Duration(milliseconds: 900);
 
   final Map<String, List<QualityOption>> _qualityCache = {};
@@ -69,11 +70,7 @@ class QualityPicker {
     final key = _qualityCacheKey(url, isAudio);
 
     final cached = _qualityCache[key];
-    if (cached != null && cached.isNotEmpty) {
-      debugPrint('[QualityPicker] CACHE HIT for $key (${cached.length} options)');
-      return cached;
-    }
-    debugPrint('[QualityPicker] CACHE MISS for $key (cache keys: ${_qualityCache.keys.toList()})');
+    if (cached != null && cached.isNotEmpty) return cached;
 
     final pending = _qualityPending[key];
     if (pending != null) return pending;
@@ -95,36 +92,71 @@ class QualityPicker {
 
   /// Obtiene formatos disponibles llamando a yt-dlp y extrae calidades
   Future<List<QualityOption>> _fetchRealQualities(String url, bool isAudio) async {
-    debugPrint('[QualityPicker] Fetching qualities for: $url (isAudio=$isAudio)');
+    // Intentar método rápido para YouTube (< 3s)
+    if (_isYoutubeUrl(url)) {
+      try {
+        final yt = explode.YoutubeExplode();
+        final manifest = await yt.videos.streamsClient.getManifest(url);
+        yt.close();
+
+        if (isAudio) {
+          // Extraer audio
+          final list = <int>[];
+          for (final s in manifest.audioOnly) {
+            list.add(s.bitrate.kiloBitsPerSecond.round());
+          }
+          final bitrates = list.toSet().toList()..sort();
+          return bitrates
+              .map((b) => QualityOption(label: '$b kbps', value: '$b kbps'))
+              .toList(growable: false);
+        } else {
+          // Extraer video
+          final heights = <int>{};
+          
+          // Muxed streams
+          for (final s in manifest.muxed) {
+             heights.add(s.videoResolution.height);
+          }
+          // Video-only streams
+          for (final s in manifest.videoOnly) {
+             heights.add(s.videoResolution.height);
+          }
+          
+          heights.removeWhere((h) => h <= 0);
+          final sorted = heights.toList()..sort();
+          
+          if (sorted.isNotEmpty) {
+            return sorted
+                .map((h) => QualityOption(label: '${h}p', value: '${h}p'))
+                .toList(growable: false);
+          }
+        }
+      } catch (e) {
+        debugPrint('Error en YoutubeExplode: $e');
+        // Fallback a yt-dlp si falla
+      }
+    }
+
+    // Método lento pero seguro (yt-dlp)
     try {
       final raw = await _ytDlp.getVideoInfo(url);
-      debugPrint('[QualityPicker] Response length: ${raw.length}');
-      if (raw.trim().isEmpty) {
-        debugPrint('[QualityPicker] Empty response from getVideoInfo');
-        return const <QualityOption>[];
-      }
+      if (raw.trim().isEmpty) return const <QualityOption>[];
 
       final decoded = jsonDecode(raw);
       final root = _extractInfoRoot(decoded);
-      if (root == null) {
-        debugPrint('[QualityPicker] Could not extract info root');
-        return const <QualityOption>[];
-      }
+      if (root == null) return const <QualityOption>[];
 
       final formats = root['formats'];
-      if (formats is! List) {
-        debugPrint('[QualityPicker] No formats list found');
-        return const <QualityOption>[];
-      }
+      if (formats is! List) return const <QualityOption>[];
 
-      debugPrint('[QualityPicker] Found ${formats.length} formats');
-      final result = isAudio ? _extractAudioQualities(formats) : _extractVideoQualities(formats);
-      debugPrint('[QualityPicker] Extracted ${result.length} quality options');
-      return result;
-    } catch (e) {
-      debugPrint('[QualityPicker] Error: $e');
+      return isAudio ? _extractAudioQualities(formats) : _extractVideoQualities(formats);
+    } catch (_) {
       return const <QualityOption>[];
     }
+  }
+
+  bool _isYoutubeUrl(String url) {
+    return url.contains('youtube.com') || url.contains('youtu.be');
   }
 
   /// Extrae calidades de audio de los formatos
@@ -173,9 +205,9 @@ class QualityPicker {
     final loadingDialogFuture = showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => _CountdownLoadingDialog(
+      builder: (ctx) => CountdownLoadingDialog(
         message: s.loadingQualities,
-        seconds: 45,
+        seconds: 7,
       ),
     ).then((_) {
       loadingDialogClosed = true;
@@ -255,53 +287,4 @@ class QualityPicker {
   /// Convierte un valor dinámico a int
   int? _asInt(dynamic value) =>
       value is int ? value : (value is num ? value.toInt() : (value is String ? int.tryParse(value) : null));
-}
-
-/// Diálogo de carga con cuenta regresiva
-class _CountdownLoadingDialog extends StatefulWidget {
-  const _CountdownLoadingDialog({required this.message, required this.seconds});
-
-  final String message;
-  final int seconds;
-
-  @override
-  State<_CountdownLoadingDialog> createState() => _CountdownLoadingDialogState();
-}
-
-class _CountdownLoadingDialogState extends State<_CountdownLoadingDialog> {
-  late int _remaining;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _remaining = widget.seconds;
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (_remaining > 0) {
-        setState(() => _remaining--);
-      } else {
-        _timer?.cancel();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      content: Row(
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(width: 20),
-          Expanded(child: Text(widget.message)),
-          Text('${_remaining}s', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        ],
-      ),
-    );
-  }
 }

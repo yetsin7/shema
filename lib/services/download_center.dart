@@ -53,20 +53,8 @@ class DownloadCenter extends ChangeNotifier {
       final filePath = event['filePath'] as String?;
       final error = event['error'] as String?;
 
-      debugPrint(
-        '[DownloadCenter] Evento recibido: status=$status, progress=$progress, id=$downloadId',
-      );
-      debugPrint(
-        '[DownloadCenter] line=$line, filePath=$filePath, error=$error',
-      );
-
       final idx = _tasks.indexWhere((t) => t.id == downloadId);
-      if (idx == -1) {
-        debugPrint(
-          '[DownloadCenter] WARN: No se encontró tarea con id=$downloadId. IDs actuales: ${_tasks.map((t) => t.id).toList()}',
-        );
-        return;
-      }
+      if (idx == -1) return;
 
       final task = _tasks[idx];
 
@@ -85,7 +73,7 @@ class DownloadCenter extends ChangeNotifier {
               task.title = 'Esperando (límite del sitio)...';
             } else if (line.contains('ExtractAudio') ||
                 line.contains('Destination:')) {
-              task.title = 'Convirtiendo a MP3...';
+              task.title = 'Obteniendo audio...';
               task.progress = 0.92;
             } else if (line.contains('Metadata')) {
               task.title = 'Agregando metadata...';
@@ -170,10 +158,6 @@ class DownloadCenter extends ChangeNotifier {
     task.status = DownloadStatus.downloading;
     task.title = 'Iniciando descarga...';
 
-    debugPrint(
-      '[DownloadCenter] Iniciando tarea: url=${task.sourceUrl}, kind=${task.kind}, quality=${task.quality}',
-    );
-
     _ytDlp
         .downloadMedia(
           url: task.sourceUrl,
@@ -182,12 +166,10 @@ class DownloadCenter extends ChangeNotifier {
           isAudio: task.kind == MediaKind.audio,
         )
         .then((downloadId) {
-          debugPrint('[DownloadCenter] ID asignado: $downloadId');
           task.id = downloadId;
           _safeNotify();
         })
         .catchError((e) {
-          debugPrint('[DownloadCenter] ERROR al iniciar: $e');
           task.status = DownloadStatus.failed;
           task.title = 'Error al iniciar: $e';
           _safeNotify();

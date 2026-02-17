@@ -23,7 +23,20 @@
       "Bash(git commit:*)",
       "Bash(git branch:*)",
       "Bash(git push:*)",
-      "Bash(dart run:*)"
+      "Bash(dart run:*)",
+      "Bash(git reset:*)",
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(test:*)",
+      "Bash(/c/Dev/shema/lib/youtube_utils.dart:*)",
+      "Bash(git stash:*)",
+      "Bash(sort:*)",
+      "Bash(flutter pub:*)",
+      "Bash(keytool:*)",
+      "Bash(\"/c/Program Files/Android/Android Studio/jbr/bin/keytool.exe\" -genkey -v -keystore \"/c/Dev/JDKs para mis Apps/Shema/shema.keystore\" -alias shema-release -keyalg RSA -keysize 2048 -validity 10000 -storepass \"Shema/12\" -keypass \"Shema/Llave7\" -dname \"CN=Yetsin Gutierrez, O=Cocibolka Apps\")",
+      "Bash(flutter devices:*)",
+      "Bash(flutter install:*)",
+      "Bash(git show:*)"
     ]
   }
 }
