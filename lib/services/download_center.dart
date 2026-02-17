@@ -33,7 +33,8 @@ class DownloadCenter extends ChangeNotifier {
   /// Flag para evitar llamadas duplicadas a notifyListeners en el mismo frame
   bool _notifyScheduled = false;
 
-  /// Notifica a los listeners de forma segura, evitando conflictos con el build
+  /// Notifica a los listeners de forma segura, evitando conflictos con el build.
+  /// Llama scheduleFrame() para garantizar que el callback se ejecute aunque la UI esté inactiva.
   void _safeNotify() {
     if (_notifyScheduled) return;
     _notifyScheduled = true;
@@ -41,6 +42,8 @@ class DownloadCenter extends ChangeNotifier {
       _notifyScheduled = false;
       notifyListeners();
     });
+    // Sin scheduleFrame, addPostFrameCallback nunca se ejecuta si la UI está idle
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   /// Escucha los eventos de progreso del canal nativo

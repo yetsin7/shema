@@ -72,12 +72,34 @@ class YouTubeScreenState extends State<YouTubeScreen> {
     controller?.loadRequest(Uri.parse('https://m.youtube.com/results?search_query='));
   }
 
+  /// URL guardada antes de pausar para restaurar al reanudar
+  String? _pausedUrl;
+
   /// Pausa la reproducción multimedia del WebView para ahorrar recursos
   void pauseWebView() {
     if (controller != null && (Platform.isAndroid || Platform.isIOS)) {
+      // Pausar todos los elementos multimedia
       controller!.runJavaScript(
         "document.querySelectorAll('video, audio').forEach(e => e.pause());",
       );
+      // Guardar URL actual y cargar página vacía para liberar buffers de video
+      controller!.currentUrl().then((url) {
+        if (url != null && url.isNotEmpty && url != 'about:blank') {
+          _pausedUrl = url;
+          controller!.loadRequest(Uri.parse('about:blank'));
+        }
+      });
+    }
+  }
+
+  /// Reanuda el WebView restaurando la URL que tenía antes de pausar
+  void resumeWebView() {
+    if (controller != null && (Platform.isAndroid || Platform.isIOS)) {
+      final url = _pausedUrl;
+      if (url != null && url.isNotEmpty) {
+        _pausedUrl = null;
+        controller!.loadRequest(Uri.parse(url));
+      }
     }
   }
 

@@ -56,12 +56,20 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     widget.downloadCenter.removeListener(_onDownloadsUpdated);
     super.dispose();
   }
-  /// Callback cuando cambian las descargas
+  /// Callback cuando cambian las descargas (progreso, estado, etc.)
   void _onDownloadsUpdated() {
     if (!mounted) return;
-    final completed = widget.downloadCenter.tasksByKind(widget.kind).where((t) => t.status == DownloadStatus.completed).length;
-    if (completed > _completedTasksCount) _refresh();
+    final completed = widget.downloadCenter.tasksByKind(widget.kind)
+        .where((t) => t.status == DownloadStatus.completed).length;
+    // Recargar archivos del disco cuando una nueva descarga se completa
+    if (completed > _completedTasksCount) {
+      _completedTasksCount = completed;
+      _refresh();
+      return;
+    }
     _completedTasksCount = completed;
+    // Forzar rebuild para mostrar progreso en tiempo real
+    setState(() {});
   }
   /// Carga los archivos de medios desde el disco
   Future<List<FileSystemEntity>> _loadMediaFiles() async {
@@ -172,7 +180,99 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
             }
             final files = snapshot.data ?? <FileSystemEntity>[];
             final uniqueFiles = files.where((f) => !taskFilePaths.contains(f.path)).toList();
-            if (tasks.isEmpty && uniqueFiles.isEmpty) return Center(child: Text(widget.emptyDescription));
+            if (tasks.isEmpty && uniqueFiles.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          widget.iconColor.withValues(alpha: 0.08),
+                          widget.tileTint.withValues(alpha: 0.6),
+                          widget.iconColor.withValues(alpha: 0.05),
+                        ],
+                      ),
+                      border: Border.all(color: widget.iconColor.withValues(alpha: 0.15)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: widget.iconColor.withValues(alpha: 0.08),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            color: widget.iconColor.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(widget.icon, size: 36, color: widget.iconColor),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          widget.emptyTitle,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          widget.emptyDescription,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: widget.iconColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.download_rounded, size: 16, color: widget.iconColor),
+                              const SizedBox(width: 6),
+                              Text(
+                                widget.kind == MediaKind.audio
+                                    ? (S.of(context).locale.languageCode == 'es'
+                                        ? 'Tu música aparecerá aquí'
+                                        : 'Your music will appear here')
+                                    : (S.of(context).locale.languageCode == 'es'
+                                        ? 'Tus videos aparecerán aquí'
+                                        : 'Your videos will appear here'),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: widget.iconColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
             return RefreshIndicator(onRefresh: _refresh, child: ListView(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
               children: [

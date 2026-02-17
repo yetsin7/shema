@@ -133,13 +133,43 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Cambia a la pestaña de configuración
   void _openSettings() => setState(() => _currentIndex = 4);
 
-  /// Cambia la pestaña activa; si toca la misma pestaña de YouTube, recarga al inicio
+  /// Cambia la pestaña activa; pausa WebViews al salir de YouTube/Shorts
   void _onTabChanged(int index) {
     if (index == 0 && _currentIndex == 0) {
       _youtubeKey.currentState?.controller?.loadRequest(Uri.parse('https://m.youtube.com'));
     } else if (index == 1 && _currentIndex == 1) {
       _shortsKey.currentState?.controller?.loadRequest(Uri.parse('https://m.youtube.com/shorts'));
     }
+
+    final wasOnWebView = _currentIndex == 0 || _currentIndex == 1;
+    final goingToWebView = index == 0 || index == 1;
+
+    // Pausar WebViews al salir de pestañas de YouTube/Shorts
+    if (wasOnWebView && !goingToWebView) {
+      _youtubeKey.currentState?.pauseWebView();
+      _shortsKey.currentState?.pauseWebView();
+    }
+
+    // Reanudar el WebView correspondiente al volver
+    if (!wasOnWebView && goingToWebView) {
+      if (index == 0) {
+        _youtubeKey.currentState?.resumeWebView();
+      } else {
+        _shortsKey.currentState?.resumeWebView();
+      }
+    }
+
+    // Si cambia entre YouTube y Shorts, pausar el que se deja y reanudar el nuevo
+    if (wasOnWebView && goingToWebView && _currentIndex != index) {
+      if (_currentIndex == 0) {
+        _youtubeKey.currentState?.pauseWebView();
+        _shortsKey.currentState?.resumeWebView();
+      } else {
+        _shortsKey.currentState?.pauseWebView();
+        _youtubeKey.currentState?.resumeWebView();
+      }
+    }
+
     setState(() => _currentIndex = index);
   }
 

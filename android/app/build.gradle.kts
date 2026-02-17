@@ -40,7 +40,9 @@ android {
         versionName = flutter.versionName
 
         ndk {
-            abiFilters += listOf("x86", "x86_64", "armeabi-v7a", "arm64-v8a")
+            // Solo ARM: x86/x86_64 son para emuladores y duplican el tamaño
+            // Para probar en emulador, agregar temporalmente "x86_64"
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
         }
     }
 
