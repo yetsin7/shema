@@ -37,25 +37,31 @@ class MediaLibraryScreen extends StatefulWidget {
 
 /// Estado de la biblioteca de medios
 class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
-  late Future<List<FileSystemEntity>> _mediaFilesFuture;
+  /// Archivos cargados desde disco (se actualiza sin mostrar spinner)
+  List<FileSystemEntity> _files = [];
   int _completedTasksCount = 0;
+
   @override
   void initState() {
     super.initState();
-    _mediaFilesFuture = _loadMediaFiles();
-    _completedTasksCount = widget.downloadCenter.tasksByKind(widget.kind).where((t) => t.status == DownloadStatus.completed).length;
+    _completedTasksCount = widget.downloadCenter.tasksByKind(widget.kind)
+        .where((t) => t.status == DownloadStatus.completed).length;
     widget.downloadCenter.addListener(_onDownloadsUpdated);
+    _refresh();
   }
+
   @override
   void didUpdateWidget(covariant MediaLibraryScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.downloadDirectory != widget.downloadDirectory) _refresh();
   }
+
   @override
   void dispose() {
     widget.downloadCenter.removeListener(_onDownloadsUpdated);
     super.dispose();
   }
+
   /// Callback cuando cambian las descargas (progreso, estado, etc.)
   void _onDownloadsUpdated() {
     if (!mounted) return;
@@ -68,9 +74,10 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
       return;
     }
     _completedTasksCount = completed;
-    // Forzar rebuild para mostrar progreso en tiempo real
+    // Forzar rebuild para mostrar progreso actualizado
     setState(() {});
   }
+
   /// Carga los archivos de medios desde el disco
   Future<List<FileSystemEntity>> _loadMediaFiles() async {
     final configured = widget.downloadDirectory;
@@ -86,10 +93,12 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     files.sort((a, b) => File(b.path).lastModifiedSync().compareTo(File(a.path).lastModifiedSync()));
     return files;
   }
-  /// Refresca la lista de archivos
+
+  /// Refresca la lista sin mostrar spinner (actualiza _files cuando termina)
   Future<void> _refresh() async {
-    setState(() => _mediaFilesFuture = _loadMediaFiles());
-    await _mediaFilesFuture;
+    final loaded = await _loadMediaFiles();
+    if (!mounted) return;
+    setState(() => _files = loaded);
   }
   /// Abre un archivo de medios con la app predeterminada
   Future<void> _openMedia(File file) async {
@@ -155,8 +164,11 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
       ],
     ));
     if (confirmed != true || !mounted) return;
-    if (task != null) await widget.downloadCenter.removeTask(task.id);
-    else if (file != null && await file.exists()) await file.delete();
+    if (task != null) {
+      await widget.downloadCenter.removeTask(task.id);
+    } else if (file != null && await file.exists()) {
+      await file.delete();
+    }
     if (!mounted) return;
     await _refresh();
     if (!mounted) return;
@@ -172,13 +184,10 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
         for (final t in tasks) {
           if (t.filePath != null && t.filePath!.isNotEmpty) taskFilePaths.add(t.filePath!);
         }
-        return FutureBuilder<List<FileSystemEntity>>(
-          future: _mediaFilesFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final files = snapshot.data ?? <FileSystemEntity>[];
+        // Usar _files directamente (sin FutureBuilder) para no mostrar
+        // spinner durante refreshes y mantener las tarjetas visibles siempre
+        {
+            final files = _files;
             final uniqueFiles = files.where((f) => !taskFilePaths.contains(f.path)).toList();
             if (tasks.isEmpty && uniqueFiles.isEmpty) {
               return Center(
@@ -309,8 +318,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                   iconColor: widget.iconColor, tileTint: widget.tileTint, onPlay: _openMedia, onDelete: _confirmDelete)),
               ],
             ));
-          },
-        );
+        }
       },
     );
   }

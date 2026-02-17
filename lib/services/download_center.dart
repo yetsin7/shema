@@ -30,20 +30,20 @@ class DownloadCenter extends ChangeNotifier {
   /// Suscripción al stream de eventos de progreso
   StreamSubscription? _progressSub;
 
-  /// Flag para evitar llamadas duplicadas a notifyListeners en el mismo frame
+  /// Flag para evitar llamadas duplicadas a notifyListeners en el mismo microtask
   bool _notifyScheduled = false;
 
-  /// Notifica a los listeners de forma segura, evitando conflictos con el build.
-  /// Llama scheduleFrame() para garantizar que el callback se ejecute aunque la UI esté inactiva.
+  /// Notifica a los listeners usando microtask para no bloquear el event loop.
+  /// Future.microtask corre antes del próximo frame, sin depender de que haya
+  /// frames activos, a diferencia de addPostFrameCallback que requiere un frame
+  /// ya programado para dispararse.
   void _safeNotify() {
     if (_notifyScheduled) return;
     _notifyScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    Future.microtask(() {
       _notifyScheduled = false;
       notifyListeners();
     });
-    // Sin scheduleFrame, addPostFrameCallback nunca se ejecuta si la UI está idle
-    WidgetsBinding.instance.scheduleFrame();
   }
 
   /// Escucha los eventos de progreso del canal nativo
