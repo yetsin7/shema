@@ -7,6 +7,7 @@ import io.flutter.plugin.common.EventChannel
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.yausername.ffmpeg.FFmpeg
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.media.MediaScannerConnection
 import android.net.Uri
@@ -86,6 +87,11 @@ class MainActivity : FlutterActivity() {
                     "openFolder" -> {
                         val path = call.argument<String>("path") ?: ""
                         openFolderInFileManager(path)
+                        result.success(true)
+                    }
+                    "openInShemaPlayer" -> {
+                        val path = call.argument<String>("path") ?: ""
+                        openInShemaPlayer(path)
                         result.success(true)
                     }
                     else -> result.notImplemented()
@@ -304,6 +310,28 @@ class MainActivity : FlutterActivity() {
     }
 
     /// Abre la carpeta específica en el explorador de archivos del sistema
+    /// Abre un archivo en Shema Player, o redirige a Play Store si no está instalada
+    private fun openInShemaPlayer(filePath: String) {
+        try {
+            val intent = Intent("com.cocibolka.shema_player.PLAY").apply {
+                putExtra("file_path", filePath)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            Log.d(TAG, "Shema Player no instalado, abriendo Play Store")
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.cocibolka.shema_player")).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                })
+            } catch (e2: ActivityNotFoundException) {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.cocibolka.shema_player")).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                })
+            }
+        }
+    }
+
     /// Abre la carpeta específica en el explorador de archivos del sistema
     private fun openFolderInFileManager(path: String) {
         val relativePath = path.replace("/storage/emulated/0/", "")

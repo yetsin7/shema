@@ -163,6 +163,9 @@ class S {
   String get languageEnglish => _isEs ? 'Inglés' : 'English';
   String get downloadFoldersSection => _isEs ? 'Carpetas de descarga' : 'Download folders';
 
+  // ===== SHEMA PLAYER =====
+  String get openInPlayer => _isEs ? 'Shema Player' : 'Shema Player';
+
   // ===== SETUP INICIAL =====
   String get setupWelcome => _isEs ? 'Bienvenido a Shema' : 'Welcome to Shema';
   String get setupPermissionTitle => _isEs ? 'Permiso de almacenamiento' : 'Storage permission';

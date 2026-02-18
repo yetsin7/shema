@@ -256,6 +256,19 @@ class MediaCard extends StatelessWidget {
             style: FilledButton.styleFrom(backgroundColor: iconColor, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 8)),
           )),
           const SizedBox(width: 8),
+          // Botón para abrir en Shema Player
+          SizedBox(width: 44, height: 40, child: IconButton(
+            onPressed: mediaFile == null ? null : () => const MethodChannel('com.cocibolka.shema/ytdlp')
+                .invokeMethod('openInShemaPlayer', {'path': mediaFile.path}),
+            icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
+            tooltip: s.openInPlayer,
+            style: IconButton.styleFrom(
+              foregroundColor: const Color(0xFF1B5E20),
+              side: const BorderSide(color: Color(0x4D1B5E20)),
+              padding: EdgeInsets.zero,
+            ),
+          )),
+          const SizedBox(width: 8),
           Expanded(child: OutlinedButton.icon(
             onPressed: () => onDelete(task: task, file: mediaFile, name: name), icon: const Icon(Icons.delete_outline, size: 18), label: Text(s.delete),
             style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700, side: BorderSide(color: Colors.red.shade200), padding: const EdgeInsets.symmetric(vertical: 8)),
