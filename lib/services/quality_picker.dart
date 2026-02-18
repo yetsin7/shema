@@ -26,7 +26,7 @@ class QualityPicker {
 
   final YtDlpService _ytDlp;
 
-  static const _qualityFetchTimeout = Duration(seconds: 7);
+  static const _qualityFetchTimeout = Duration(seconds: 3);
   static const _qualityPrefetchDebounce = Duration(milliseconds: 900);
 
   final Map<String, List<QualityOption>> _qualityCache = {};
@@ -207,7 +207,7 @@ class QualityPicker {
       barrierDismissible: true,
       builder: (ctx) => CountdownLoadingDialog(
         message: s.loadingQualities,
-        seconds: 7,
+        seconds: 3,
       ),
     ).then((_) {
       loadingDialogClosed = true;

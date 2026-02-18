@@ -11,7 +11,8 @@ import 'home_screen.dart';
 /// Pantalla de setup inicial que se muestra la primera vez que se abre la app.
 ///
 /// Paso 1: Solicitar permisos de almacenamiento.
-/// Paso 2: Mostrar carpetas creadas y permitir cambiarlas.
+/// Paso 2: El usuario DEBE elegir manualmente la carpeta de videos y la de música.
+///         No se puede avanzar sin haber elegido ambas.
 class SetupScreen extends StatefulWidget {
   /// Crea la pantalla de setup con el controlador de YouTube precargado
   const SetupScreen({super.key, this.preloadedYouTubeController});
@@ -32,12 +33,17 @@ class _SetupScreenState extends State<SetupScreen> {
   /// Estado del permiso de almacenamiento
   bool _permissionGranted = false;
 
-  /// Indica si se están creando las carpetas
-  bool _foldersReady = false;
+  /// Indica si el usuario ya eligió manualmente la carpeta de videos
+  bool _videoChosen = false;
 
-  /// Rutas de las carpetas creadas
-  String _musicPath = '';
+  /// Indica si el usuario ya eligió manualmente la carpeta de música
+  bool _musicChosen = false;
+
+  /// Ruta elegida para videos (vacía hasta que el usuario la seleccione)
   String _videoPath = '';
+
+  /// Ruta elegida para música (vacía hasta que el usuario la seleccione)
+  String _musicPath = '';
 
   @override
   void initState() {
@@ -53,41 +59,44 @@ class _SetupScreenState extends State<SetupScreen> {
         _permissionGranted = true;
         _step = 1;
       });
-      await _createFolders();
     }
   }
 
-  /// Solicita permisos de almacenamiento
+  /// Solicita permisos de almacenamiento y avanza al paso de carpetas
   Future<void> _requestPermission() async {
     final granted = await _dirManager.requestStoragePermission();
     if (!mounted) return;
     setState(() => _permissionGranted = granted);
     if (granted) {
       setState(() => _step = 1);
-      await _createFolders();
     }
   }
 
-  /// Crea las carpetas por defecto y carga los directorios
-  Future<void> _createFolders() async {
-    await _dirManager.loadDirectories();
-    if (!mounted) return;
-    setState(() {
-      _musicPath = _dirManager.musicDirectory ?? '';
-      _videoPath = _dirManager.videoDirectory ?? '';
-      _foldersReady = true;
-    });
-  }
-
-  /// Permite cambiar la carpeta de música o videos
-  Future<void> _changeFolder({required bool isMusic}) async {
+  /// Abre el selector de carpeta y, si el usuario elige una válida, la marca como seleccionada
+  Future<void> _pickFolder({required bool isMusic}) async {
     final changed = await _dirManager.pickFolder(context, isMusic: isMusic);
-    if (changed && mounted) {
-      setState(() {
-        _musicPath = _dirManager.musicDirectory ?? '';
-        _videoPath = _dirManager.videoDirectory ?? '';
-      });
+    if (!changed || !mounted) return;
+
+    final newPath = isMusic
+        ? _dirManager.musicDirectory ?? ''
+        : _dirManager.videoDirectory ?? '';
+
+    // Verificar que no coincida con la otra carpeta ya elegida
+    final otherPath = isMusic ? _videoPath : _musicPath;
+    if (otherPath.isNotEmpty && newPath == otherPath) {
+      // El DirectoryManager ya mostró el snackbar; no marcar como elegida
+      return;
     }
+
+    setState(() {
+      if (isMusic) {
+        _musicPath = newPath;
+        _musicChosen = true;
+      } else {
+        _videoPath = newPath;
+        _videoChosen = true;
+      }
+    });
   }
 
   /// Completa el setup y navega al home
@@ -96,18 +105,17 @@ class _SetupScreenState extends State<SetupScreen> {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) =>
+        pageBuilder: (context, animation, secondaryAnimation) =>
             HomeScreen(preloadedYouTubeController: widget.preloadedYouTubeController),
         transitionDuration: const Duration(milliseconds: 500),
-        transitionsBuilder: (_, animation, __, child) =>
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
             FadeTransition(opacity: animation, child: child),
       ),
     );
   }
 
-  /// Obtiene un nombre corto de la ruta para mostrar al usuario
+  /// Acorta una ruta larga para mostrarla en la UI
   String _shortPath(String path) {
-    // Mostrar desde Download/ en adelante
     final idx = path.indexOf('Download/');
     if (idx != -1) return path.substring(idx);
     return path;
@@ -131,13 +139,14 @@ class _SetupScreenState extends State<SetupScreen> {
               ),
               const SizedBox(height: 16),
               Text(s.setupWelcome,
-                style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text(s.splashSubtitle,
-                style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14)),
               const SizedBox(height: 40),
 
-              // Contenido según el paso
+              // Contenido según el paso actual
               Expanded(
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
@@ -175,12 +184,12 @@ class _SetupScreenState extends State<SetupScreen> {
               ),
               const SizedBox(height: 20),
               Text(s.setupPermissionTitle,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center),
               const SizedBox(height: 12),
               Text(s.setupPermissionDesc,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-                textAlign: TextAlign.center),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+                  textAlign: TextAlign.center),
               const SizedBox(height: 24),
               if (!_permissionGranted)
                 SizedBox(
@@ -189,10 +198,12 @@ class _SetupScreenState extends State<SetupScreen> {
                   child: FilledButton.icon(
                     onPressed: _requestPermission,
                     icon: const Icon(Icons.security_rounded),
-                    label: Text(s.setupGrantPermission, style: const TextStyle(fontSize: 16)),
+                    label: Text(s.setupGrantPermission,
+                        style: const TextStyle(fontSize: 16)),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF2E7D32),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
                     ),
                   ),
                 )
@@ -200,10 +211,14 @@ class _SetupScreenState extends State<SetupScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.check_circle_rounded, color: Color(0xFF2E7D32), size: 24),
+                    const Icon(Icons.check_circle_rounded,
+                        color: Color(0xFF2E7D32), size: 24),
                     const SizedBox(width: 8),
                     Text(s.setupPermissionGranted,
-                      style: const TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.w700, fontSize: 16)),
+                        style: const TextStyle(
+                            color: Color(0xFF2E7D32),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16)),
                   ],
                 ),
             ],
@@ -213,8 +228,9 @@ class _SetupScreenState extends State<SetupScreen> {
     );
   }
 
-  /// Paso 2: Mostrar carpetas creadas y permitir cambiarlas
+  /// Paso 2: El usuario elige manualmente ambas carpetas antes de continuar
   Widget _buildFoldersStep(S s) {
+    final bothChosen = _videoChosen && _musicChosen;
     return Column(
       key: const ValueKey('folders'),
       children: [
@@ -226,122 +242,163 @@ class _SetupScreenState extends State<SetupScreen> {
             borderRadius: BorderRadius.circular(20),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5E9),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(Icons.check_circle_outline_rounded, size: 48, color: Color(0xFF2E7D32)),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Center(child: Text(s.setupFoldersTitle,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center)),
+              Text(s.setupChooseFolders,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center),
               const SizedBox(height: 8),
-              Center(child: Text(s.setupFoldersCreated,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                textAlign: TextAlign.center)),
-              const SizedBox(height: 20),
+              Text(s.setupChooseFoldersDesc,
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 24),
 
-              // Carpeta de videos
-              _buildFolderRow(
+              // Tarjeta de carpeta de videos
+              _buildPickFolderCard(
                 icon: Icons.videocam_rounded,
                 color: const Color(0xFFEF6C00),
                 bgColor: const Color(0xFFFFF3E0),
                 label: s.setupVideoFolder,
-                path: _shortPath(_videoPath),
-                onChangeTap: () => _changeFolder(isMusic: false),
-                changeLabel: s.setupChangeFolder,
+                chosen: _videoChosen,
+                path: _videoPath,
+                onTap: () => _pickFolder(isMusic: false),
+                s: s,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
 
-              // Carpeta de música
-              _buildFolderRow(
+              // Tarjeta de carpeta de música
+              _buildPickFolderCard(
                 icon: Icons.music_note_rounded,
                 color: const Color(0xFF1565C0),
                 bgColor: const Color(0xFFE3F2FD),
                 label: s.setupMusicFolder,
-                path: _shortPath(_musicPath),
-                onChangeTap: () => _changeFolder(isMusic: true),
-                changeLabel: s.setupChangeFolder,
+                chosen: _musicChosen,
+                path: _musicPath,
+                onTap: () => _pickFolder(isMusic: true),
+                s: s,
               ),
-
-              const SizedBox(height: 16),
-              Center(child: Text(s.setupChangeable,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                textAlign: TextAlign.center)),
             ],
           ),
         ),
         const Spacer(),
-        // Botón empezar
-        if (_foldersReady)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 32),
-            child: SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: FilledButton(
-                onPressed: _finishSetup,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF1B5E20),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                child: Text(s.setupStart),
+
+        // Botón empezar: desactivado hasta que ambas carpetas estén elegidas
+        Padding(
+          padding: const EdgeInsets.only(bottom: 32),
+          child: SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: FilledButton(
+              onPressed: bothChosen ? _finishSetup : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF1B5E20),
+                disabledBackgroundColor: Colors.white24,
+                disabledForegroundColor: Colors.white38,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                textStyle:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
+              child: Text(bothChosen ? s.setupStart : s.setupChooseBothFirst),
             ),
           ),
+        ),
       ],
     );
   }
 
-  /// Fila que muestra una carpeta con su icono, ruta y botón de cambiar
-  Widget _buildFolderRow({
+  /// Tarjeta interactiva para elegir una carpeta (videos o música)
+  Widget _buildPickFolderCard({
     required IconData icon,
     required Color color,
     required Color bgColor,
     required String label,
+    required bool chosen,
     required String path,
-    required VoidCallback onChangeTap,
-    required String changeLabel,
+    required VoidCallback onTap,
+    required S s,
   }) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: bgColor.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: chosen ? bgColor.withValues(alpha: 0.6) : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: chosen ? color.withValues(alpha: 0.5) : Colors.grey.shade300,
+          width: chosen ? 2 : 1,
+        ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: color)),
-                const SizedBox(height: 2),
-                Text(path,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                  maxLines: 2, overflow: TextOverflow.ellipsis),
-              ],
-            ),
+          Row(
+            children: [
+              // Icono con fondo dinámico según si fue elegida
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: chosen ? bgColor : Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon,
+                    color: chosen ? color : Colors.grey.shade500, size: 26),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: chosen ? color : Colors.grey.shade700,
+                        )),
+                    const SizedBox(height: 2),
+                    if (chosen)
+                      Text(
+                        _shortPath(path),
+                        style:
+                            TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    else
+                      Text(s.setupNotSelected,
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade400)),
+                  ],
+                ),
+              ),
+              // Checkmark cuando ya fue elegida
+              if (chosen)
+                const Icon(Icons.check_circle_rounded,
+                    color: Color(0xFF2E7D32), size: 24),
+            ],
           ),
-          TextButton(
-            onPressed: onChangeTap,
-            style: TextButton.styleFrom(
-              foregroundColor: color,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          const SizedBox(height: 14),
+
+          // Botón de selección/cambio
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onTap,
+              icon: Icon(
+                  chosen ? Icons.edit_rounded : Icons.folder_open_rounded,
+                  size: 18),
+              label: Text(chosen ? s.setupChangeFolder : s.setupSelectFolder),
+              style: OutlinedButton.styleFrom(
+                foregroundColor:
+                    chosen ? color : const Color(0xFF2E7D32),
+                side: BorderSide(
+                    color: chosen
+                        ? color.withValues(alpha: 0.6)
+                        : const Color(0xFF2E7D32).withValues(alpha: 0.6)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
             ),
-            child: Text(changeLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
           ),
         ],
       ),

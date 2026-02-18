@@ -57,6 +57,19 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Indica si un video está en pantalla completa (oculta AppBar y nav)
   bool _isFullScreen = false;
 
+  /// URL actual del WebView de YouTube (para mostrar/ocultar el botón Bajar)
+  String _youtubeUrl = '';
+
+  /// URL actual del WebView de Shorts (para mostrar/ocultar el botón Bajar)
+  String _shortsUrl = '';
+
+  /// El botón Bajar solo se muestra cuando la pestaña activa tiene una URL de video
+  bool get _showDownloadButton {
+    if (_currentIndex == 0) return isLikelyYouTubeVideoUrl(_youtubeUrl);
+    if (_currentIndex == 1) return isLikelyYouTubeVideoUrl(_shortsUrl);
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -194,22 +207,85 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         appBar: _isFullScreen ? null : AppBar(
           automaticallyImplyLeading: false,
-          titleSpacing: 8,
+          titleSpacing: 16,
           backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-          leading: Padding(
-            padding: const EdgeInsets.all(12),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset('assets/icon_shema.png', fit: BoxFit.cover),
-            ),
+          // Logo + título + subtítulo premium
+          title: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(11),
+                child: Image.asset('assets/icon_shema.png',
+                    width: 36, height: 36, fit: BoxFit.cover),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Shema',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                      height: 1.1,
+                    ),
+                  ),
+                  Text(
+                    'YouTube Downloader',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.1,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          title: const Text('Shema'),
           actions: [
-            IconButton(
-              tooltip: S.of(context).downloadTooltip,
-              onPressed: _openDownloadOptions,
-              icon: const Icon(Icons.download),
-            ),
+            // Botón Bajar: solo visible cuando hay un video de YouTube activo
+            if (_showDownloadButton)
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: GestureDetector(
+                  onTap: _openDownloadOptions,
+                  child: Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF22C55E), Color(0xFF15803D)],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF16A34A).withValues(alpha: 0.38),
+                          blurRadius: 10,
+                          spreadRadius: -2,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.download_rounded, color: Colors.white, size: 18),
+                        SizedBox(width: 5),
+                        Text('Bajar',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
         body: Stack(
@@ -235,11 +311,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           initialUrl: 'https://www.youtube.com',
                           preloadedController: widget.preloadedYouTubeController,
                           onFullScreenChanged: (fs) => setState(() => _isFullScreen = fs),
+                          onUrlChanged: (url) => setState(() => _youtubeUrl = url),
                         ),
                         YouTubeScreen(
                           key: _shortsKey,
                           initialUrl: 'https://www.youtube.com/shorts',
                           onFullScreenChanged: (fs) => setState(() => _isFullScreen = fs),
+                          onUrlChanged: (url) => setState(() => _shortsUrl = url),
                         ),
                         MusicScreen(downloadCenter: _downloadCenter, downloadDirectory: _dirManager.musicDirectory),
                         VideosScreen(downloadCenter: _downloadCenter, downloadDirectory: _dirManager.videoDirectory),

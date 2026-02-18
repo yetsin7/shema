@@ -23,6 +23,7 @@ class YouTubeScreen extends StatefulWidget {
     this.preloadedController,
     this.onCanGoBackChanged,
     this.onFullScreenChanged,
+    this.onUrlChanged,
   });
 
   /// URL inicial a cargar (ej: 'https://www.youtube.com' o '.../shorts')
@@ -36,6 +37,9 @@ class YouTubeScreen extends StatefulWidget {
 
   /// Callback cuando entra/sale de pantalla completa
   final ValueChanged<bool>? onFullScreenChanged;
+
+  /// Callback cuando la URL de la página cambia (al iniciar y terminar de cargar)
+  final ValueChanged<String>? onUrlChanged;
 
   @override
   State<YouTubeScreen> createState() => YouTubeScreenState();
@@ -134,15 +138,17 @@ class YouTubeScreenState extends State<YouTubeScreen> {
       if (!mounted) return;
       setState(() { _progress = p; _errorMessage = null; });
     },
-    onPageStarted: (_) {
+    onPageStarted: (url) {
       if (!mounted) return;
       setState(() => _errorMessage = null);
+      if (url.isNotEmpty) widget.onUrlChanged?.call(url);
     },
-    onPageFinished: (_) {
+    onPageFinished: (url) {
       if (!mounted) return;
       _injectCustomizations();
       setState(() => _progress = 100);
       _notifyCanGoBack();
+      if (url.isNotEmpty) widget.onUrlChanged?.call(url);
     },
     onWebResourceError: (error) {
       if (!mounted) return;
@@ -163,6 +169,32 @@ class YouTubeScreenState extends State<YouTubeScreen> {
     if (controller == null) return;
     try { await controller!.runJavaScript(youtubeCustomizationsJs); } catch (_) {}
     _injectDimensions();
+    _injectUrlTracker();
+  }
+
+  /// Inyecta JS que intercepta history.pushState/replaceState para detectar
+  /// cambios de URL sin recarga de página (navegación entre Shorts, por ejemplo)
+  void _injectUrlTracker() {
+    if (controller == null || widget.onUrlChanged == null) return;
+    const js = '''
+(function() {
+  if (window.__shemaUrlTracker) return;
+  window.__shemaUrlTracker = true;
+  function notifyUrl() {
+    var url = window.location.href;
+    if (url && url !== 'about:blank') {
+      try { ShemaUrlChannel.postMessage(url); } catch(e) {}
+    }
+  }
+  var origPush = history.pushState;
+  history.pushState = function() { origPush.apply(this, arguments); setTimeout(notifyUrl, 0); };
+  var origReplace = history.replaceState;
+  history.replaceState = function() { origReplace.apply(this, arguments); setTimeout(notifyUrl, 0); };
+  window.addEventListener('popstate', notifyUrl);
+  notifyUrl();
+})();
+''';
+    try { controller!.runJavaScript(js); } catch (_) {}
   }
 
   /// Inyecta las dimensiones reales del área visible como CSS variables
@@ -188,7 +220,18 @@ class YouTubeScreenState extends State<YouTubeScreen> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFFF9F9F9))
       ..setNavigationDelegate(_navigationDelegate())
-      ..enableZoom(true);
+      ..enableZoom(true)
+      ..addJavaScriptChannel(
+        'ShemaUrlChannel',
+        onMessageReceived: (JavaScriptMessage msg) {
+          // YouTube usa history.pushState para navegar entre videos (ej: Shorts)
+          // Este canal recibe la nueva URL sin necesidad de recargar la página
+          final url = msg.message;
+          if (mounted && url.isNotEmpty && url != 'about:blank') {
+            widget.onUrlChanged?.call(url);
+          }
+        },
+      );
 
     // Configurar plataforma Android para soporte de video inline y fullscreen
     if (Platform.isAndroid && controller!.platform is AndroidWebViewController) {

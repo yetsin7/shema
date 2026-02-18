@@ -1,88 +1,272 @@
-/// Componentes auxiliares para la tarjeta de medios: thumbnail, chips y estado.
+/// Componentes auxiliares para la tarjeta de medios: header showcase, chips y estado.
 library;
 
 import 'package:flutter/material.dart';
 import '../services/download_service.dart';
+import '../theme.dart';
 
-/// Construye el thumbnail del card: icono para audio, portada para video
-Widget buildMediaThumbnail({
+/// Construye la cabecera compacta de 60px de la tarjeta showcase.
+///
+/// Icono del tipo de medio a la izquierda, título con scroll marquee al centro,
+/// badge de estado a la derecha. Fondo de gradiente o thumbnail.
+Widget buildCardHeader({
   required BuildContext context,
   required bool isAudio,
-  required bool completed,
+  required Color accentColor,
+  required String title,
+  required Widget statusBadge,
   DownloadTask? task,
 }) {
-  const double size = 56;
-  final borderRadius = BorderRadius.circular(14);
+  final thumbUrl = task?.thumbnailUrl ?? '';
+  final hasThumbnail = !isAudio && thumbUrl.isNotEmpty;
 
-  /// Audio: caja azul con icono de ecualizador
-  if (isAudio) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: const Color(0xFFE3F2FD),
-        borderRadius: borderRadius,
-      ),
-      child: const Icon(Icons.graphic_eq_rounded, color: Color(0xFF1565C0), size: 28),
-    );
-  }
+  final Color gradTop = isAudio
+      ? accentColor
+      : accentColor.withValues(alpha: 0.95);
+  final Color gradBottom = HSLColor.fromColor(accentColor)
+      .withLightness(
+          (HSLColor.fromColor(accentColor).lightness - (isAudio ? 0.18 : 0.14))
+              .clamp(0.0, 1.0))
+      .toColor();
 
-  /// Video completado con thumbnail de red
-  if (completed && task?.thumbnailUrl != null && task!.thumbnailUrl!.isNotEmpty) {
-    return ClipRRect(
-      borderRadius: borderRadius,
-      child: Image.network(
-        task.thumbnailUrl!,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) =>
-            _videoIconBox(size, borderRadius),
-      ),
-    );
-  }
+  const titleStyle = TextStyle(
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.3,
+    height: 1.0,
+    shadows: [Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 1))],
+  );
 
-  return _videoIconBox(size, borderRadius);
-}
-
-/// Caja con icono de video (fallback cuando no hay thumbnail)
-Widget _videoIconBox(double size, BorderRadius borderRadius) {
-  return Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(
-      color: const Color(0xFFFFF3E0),
-      borderRadius: borderRadius,
+  return ClipRRect(
+    borderRadius: const BorderRadius.only(
+      topLeft: Radius.circular(ShemaRadius.card),
+      topRight: Radius.circular(ShemaRadius.card),
     ),
-    child: const Icon(Icons.movie_creation_outlined, color: Color(0xFFEF6C00), size: 28),
+    child: SizedBox(
+      height: 60,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Fondo: thumbnail o gradiente
+          if (hasThumbnail)
+            Image.network(
+              thumbUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _buildGradient(gradTop, gradBottom),
+            )
+          else
+            _buildGradient(gradTop, gradBottom),
+
+          // Scrim de legibilidad sobre toda la cabecera
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.15),
+                    Colors.black.withValues(alpha: 0.55),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Fila: icono | título marquee | badge
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Icono del tipo de medio
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.20),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Icon(
+                      isAudio
+                          ? Icons.graphic_eq_rounded
+                          : Icons.movie_creation_outlined,
+                      color: Colors.white,
+                      size: 15,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Título con efecto marquee (scroll horizontal si no cabe)
+                  Expanded(child: _MarqueeText(text: title, style: titleStyle)),
+                  const SizedBox(width: 6),
+                  statusBadge,
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 }
 
-/// Construye un chip de metadatos (calidad, formato, tamaño)
+/// Fondo de gradiente diagonal para la cabecera
+Widget _buildGradient(Color top, Color bottom) {
+  return DecoratedBox(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [top, bottom],
+      ),
+    ),
+  );
+}
+
+/// Texto con scroll horizontal continuo (marquee) cuando el texto no cabe en el ancho.
+///
+/// Si el texto cabe, se muestra estático. Si no cabe, desplaza de derecha a izquierda
+/// de forma continua y seamless, con fade en el borde derecho.
+class _MarqueeText extends StatefulWidget {
+  const _MarqueeText({required this.text, required this.style});
+
+  final String text;
+  final TextStyle style;
+
+  @override
+  State<_MarqueeText> createState() => _MarqueeTextState();
+}
+
+class _MarqueeTextState extends State<_MarqueeText>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  /// Velocidad de desplazamiento en píxeles por segundo
+  static const _speed = 38.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (_, constraints) {
+      // Medir el ancho real del texto sin restricción
+      final tp = TextPainter(
+        text: TextSpan(text: widget.text, style: widget.style),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout(minWidth: 0, maxWidth: double.infinity);
+
+      final textW = tp.width;
+      final boxW = constraints.maxWidth;
+
+      // Si cabe, texto estático
+      if (textW <= boxW) {
+        return Text(widget.text, style: widget.style, maxLines: 1);
+      }
+
+      // Configurar duración según velocidad constante
+      const gap = 44.0;
+      final cycleW = textW + gap;
+      final cycleDuration =
+          Duration(milliseconds: (cycleW / _speed * 1000).round());
+
+      if (_ctrl.duration != cycleDuration) {
+        _ctrl.duration = cycleDuration;
+        _ctrl.repeat();
+      } else if (!_ctrl.isAnimating) {
+        _ctrl.repeat();
+      }
+
+      // Scroll seamless: dos copias del texto se turnan
+      return ShaderMask(
+        shaderCallback: (rect) => LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [Colors.white, Colors.white, Colors.transparent],
+          stops: const [0.0, 0.82, 1.0],
+        ).createShader(rect),
+        blendMode: BlendMode.dstIn,
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            // Invisible para dar altura al Stack
+            Opacity(
+              opacity: 0,
+              child: Text(widget.text, style: widget.style, maxLines: 1),
+            ),
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _ctrl,
+                builder: (_, _) {
+                  final shift = _ctrl.value * cycleW;
+                  return OverflowBox(
+                    alignment: Alignment.centerLeft,
+                    maxWidth: double.infinity,
+                    child: Transform.translate(
+                      offset: Offset(-shift, 0),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(widget.text,
+                              style: widget.style,
+                              maxLines: 1,
+                              softWrap: false),
+                          SizedBox(width: gap),
+                          Text(widget.text,
+                              style: widget.style,
+                              maxLines: 1,
+                              softWrap: false),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+/// Construye un chip de metadatos (calidad, formato, tamaño, fecha)
 Widget buildMetaChip(
   BuildContext context, {
   required IconData icon,
   required String label,
   required Color iconColor,
 }) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.78),
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: iconColor.withValues(alpha: 0.22)),
+      color: isDark ? ShemaColors.darkCardElevated : ShemaColors.lightBg,
+      borderRadius: BorderRadius.circular(ShemaRadius.chip),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: iconColor),
-        const SizedBox(width: 5),
+        Icon(icon, size: 12, color: iconColor.withValues(alpha: 0.8)),
+        const SizedBox(width: 4),
         Text(
           label,
           style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
@@ -90,7 +274,9 @@ Widget buildMetaChip(
   );
 }
 
-/// Construye el chip de estado (en cola, descargando, completado, error)
+/// Construye el badge de estado (en cola, descargando, completado, error)
+///
+/// [compact] = true para el badge de esquina dentro del header de la card.
 Widget buildStatusChip(
   BuildContext context, {
   required String label,
@@ -98,31 +284,46 @@ Widget buildStatusChip(
   required bool completed,
   required bool queued,
   required Color iconColor,
+  bool compact = false,
 }) {
   final Color base = failed
-      ? const Color(0xFFC62828)
+      ? const Color(0xFFEF4444)
       : completed
-          ? const Color(0xFF2E7D32)
+          ? ShemaColors.seed
           : queued
-              ? Colors.grey
+              ? const Color(0xFF8E8E93)
               : iconColor;
+
+  final hPad = compact ? 7.0 : 9.0;
+  final vPad = compact ? 3.0 : 4.0;
+
+  final bgAlpha = compact ? 0.85 : 0.14;
+  final fgColor = compact ? Colors.white : base;
+  final bgColor = compact ? Colors.black.withValues(alpha: bgAlpha) : base.withValues(alpha: bgAlpha);
+
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
     decoration: BoxDecoration(
-      color: base.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: base.withValues(alpha: 0.32)),
+      color: bgColor,
+      borderRadius: BorderRadius.circular(compact ? 6 : 8),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (completed) ...[
-          Icon(Icons.folder_open_rounded, size: 14, color: base),
-          const SizedBox(width: 4),
+        if (failed) ...[
+          Icon(Icons.error_outline_rounded, size: 11, color: fgColor),
+          const SizedBox(width: 3),
+        ] else if (completed && !compact) ...[
+          Icon(Icons.check_circle_outline_rounded, size: 11, color: fgColor),
+          const SizedBox(width: 3),
         ],
         Text(
           label,
-          style: TextStyle(color: base, fontSize: 12, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: fgColor,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
     ),

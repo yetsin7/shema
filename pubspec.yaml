@@ -44,6 +44,7 @@ dependencies:
   youtube_explode_dart: ^3.0.5
   intl: ^0.20.2
   permission_handler: ^11.3.1
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:
@@ -69,6 +70,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon_shema.png
+    - assets/icon_shema_player.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

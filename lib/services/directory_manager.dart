@@ -5,7 +5,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -178,16 +178,29 @@ class DirectoryManager {
     }
   }
 
-  /// Selector de carpeta
+  /// Selector de carpeta con validación de carpetas distintas
   Future<bool> pickFolder(BuildContext context, {required bool isMusic}) async {
     final s = S.of(context);
     final selectedPath = await FilePicker.platform.getDirectoryPath(
       dialogTitle: isMusic ? s.changeMusicFolder : s.changeVideoFolder,
-      initialDirectory: isMusic ? musicDirectory : videoDirectory,
     );
 
     if (selectedPath == null || selectedPath.isEmpty) return false;
     if (!context.mounted) return false;
+
+    // Rechazar si el usuario elige la misma carpeta que ya usa el otro tipo
+    final otherPath = isMusic ? videoDirectory : musicDirectory;
+    if (otherPath != null &&
+        otherPath.isNotEmpty &&
+        _normalizePath(selectedPath) == _normalizePath(otherPath)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(s.separateFoldersRequired),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+      return false;
+    }
 
     try {
       await Directory(selectedPath).create(recursive: true);
@@ -215,7 +228,11 @@ class DirectoryManager {
     }
   }
 
-  /// Abre la carpeta configurada
+  /// Normaliza una ruta eliminando slashes finales para comparación segura
+  String _normalizePath(String path) =>
+      path.trim().replaceAll(RegExp(r'[\\/]+$'), '');
+
+  /// Abre la carpeta configurada usando el canal nativo de Android para navegación exacta
   Future<void> openConfiguredFolder(BuildContext context, {required bool isMusic}) async {
     final s = S.of(context);
     final configured = (isMusic ? musicDirectory : videoDirectory)?.trim();
@@ -231,9 +248,19 @@ class DirectoryManager {
     final directory = Directory(configured);
     if (!await directory.exists()) await directory.create(recursive: true);
 
-    final result = await OpenFilex.open(directory.path);
+    // En Android usamos el MethodChannel que construye la URI correcta de DocumentsContract
+    // (igual que media_card.dart cuando abre la carpeta de un archivo)
+    if (Platform.isAndroid) {
+      try {
+        await const MethodChannel('com.cocibolka.shema/ytdlp')
+            .invokeMethod('openFolder', {'path': directory.path});
+        return;
+      } catch (_) {
+        // Si falla el canal nativo, continúa al fallback
+      }
+    }
+
     if (!context.mounted) return;
-    if (result.type == ResultType.done) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(s.cantOpenFolder)),
     );

@@ -153,15 +153,21 @@ class S {
   // ===== CONFIGURACIÓN =====
   String get settingsTitle => _isEs ? 'Configuración' : 'Settings';
   String get settingsTooltip => _isEs ? 'Configuración' : 'Settings';
-  String get themeSection => _isEs ? 'Apariencia' : 'Appearance';
+  String get themeSection => _isEs ? 'Tema' : 'Theme';
   String get themeSystem => _isEs ? 'Sistema' : 'System';
   String get themeLight => _isEs ? 'Claro' : 'Light';
   String get themeDark => _isEs ? 'Oscuro' : 'Dark';
   String get languageSection => _isEs ? 'Idioma' : 'Language';
   String get languageSystem => _isEs ? 'Sistema' : 'System';
+  String get languageSystemSubtitle => _isEs ? 'Idioma del dispositivo' : 'Device language';
   String get languageSpanish => _isEs ? 'Español' : 'Spanish';
   String get languageEnglish => _isEs ? 'Inglés' : 'English';
   String get downloadFoldersSection => _isEs ? 'Carpetas de descarga' : 'Download folders';
+  String itemCount(int count) => _isEs ? '$count elementos' : '$count items';
+  String get aboutSection => _isEs ? 'Acerca de' : 'About';
+  String get appTagline => _isEs ? 'Descargador de YouTube gratuito' : 'Free YouTube downloader';
+  String get shemaPlayerTagline => _isEs ? 'Reproductor multimedia gratuito' : 'Free media player';
+  String get getOnPlayStore => _isEs ? 'Obtener' : 'Get';
 
   // ===== SHEMA PLAYER =====
   String get openInPlayer => _isEs ? 'Shema Player' : 'Shema Player';
@@ -188,6 +194,14 @@ class S {
       : 'You can change these locations anytime from Settings.';
   String get setupStart => _isEs ? 'Empezar' : 'Get started';
   String get setupChangeFolder => _isEs ? 'Cambiar' : 'Change';
+  String get setupChooseFolders => _isEs ? 'Elige tus carpetas' : 'Choose your folders';
+  String get setupChooseFoldersDesc => _isEs
+      ? 'Debes elegir una carpeta para videos y una para música. Ambas son obligatorias.'
+      : 'You must choose a folder for videos and one for music. Both are required.';
+  String get setupNotSelected => _isEs ? 'No seleccionada' : 'Not selected';
+  String get setupSelectFolder => _isEs ? 'Elegir carpeta' : 'Select folder';
+  String get setupChooseBothFirst =>
+      _isEs ? 'Elige ambas carpetas para continuar' : 'Select both folders to continue';
 
   // ===== ELIMINAR =====
   String get deleteFileTitle =>
