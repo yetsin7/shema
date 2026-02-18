@@ -1,10 +1,11 @@
-/// Selector visual de tema con tarjetas animadas (Sistema/Claro/Oscuro).
+/// Selector de tema — control segmentado tipo píldora.
 library;
 
 import 'package:flutter/material.dart';
 import '../l10n.dart';
+import '../theme.dart';
 
-/// Selector visual de tema con 3 tarjetas horizontales
+/// Selector visual de tema como control segmentado en una píldora
 class ThemeSelector extends StatelessWidget {
   const ThemeSelector({
     required this.currentMode,
@@ -21,92 +22,106 @@ class ThemeSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
-    return Row(
-      children: [
-        _ThemeCard(
-          icon: Icons.brightness_auto,
-          label: s.themeSystem,
-          selected: currentMode == ThemeMode.system,
-          onTap: () => onChanged(ThemeMode.system),
-        ),
-        const SizedBox(width: 10),
-        _ThemeCard(
-          icon: Icons.light_mode_rounded,
-          label: s.themeLight,
-          selected: currentMode == ThemeMode.light,
-          onTap: () => onChanged(ThemeMode.light),
-        ),
-        const SizedBox(width: 10),
-        _ThemeCard(
-          icon: Icons.dark_mode_rounded,
-          label: s.themeDark,
-          selected: currentMode == ThemeMode.dark,
-          onTap: () => onChanged(ThemeMode.dark),
-        ),
-      ],
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      height: 58,
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: isDark ? ShemaColors.darkCardElevated : ShemaColors.lightBg,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          _Segment(
+            icon: Icons.brightness_auto_rounded,
+            label: s.themeSystem,
+            selected: currentMode == ThemeMode.system,
+            isDark: isDark,
+            onTap: () => onChanged(ThemeMode.system),
+          ),
+          _Segment(
+            icon: Icons.light_mode_rounded,
+            label: s.themeLight,
+            selected: currentMode == ThemeMode.light,
+            isDark: isDark,
+            onTap: () => onChanged(ThemeMode.light),
+          ),
+          _Segment(
+            icon: Icons.dark_mode_rounded,
+            label: s.themeDark,
+            selected: currentMode == ThemeMode.dark,
+            isDark: isDark,
+            onTap: () => onChanged(ThemeMode.dark),
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// Tarjeta individual de tema con animación de selección
-class _ThemeCard extends StatelessWidget {
-  const _ThemeCard({
+/// Segmento individual del control
+class _Segment extends StatelessWidget {
+  const _Segment({
     required this.icon,
     required this.label,
     required this.selected,
+    required this.isDark,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
+  final bool isDark;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final bgColor =
-        selected
-            ? colorScheme.primaryContainer
-            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5);
-    final fgColor =
-        selected ? colorScheme.onPrimaryContainer : colorScheme.onSurfaceVariant;
-    final borderColor =
-        selected ? colorScheme.primary : Colors.transparent;
+    // Activo: píldora verde. Inactivo: transparente
+    const activeBg = ShemaColors.seed;
+    const activeFg = Colors.white;
+    final inactiveFg = isDark
+        ? const Color(0xFF8D8D93)
+        : const Color(0xFF8E8E93);
 
     return Expanded(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor, width: selected ? 2 : 0),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedScale(
-                  scale: selected ? 1.15 : 1.0,
-                  duration: const Duration(milliseconds: 250),
-                  child: Icon(icon, color: fgColor, size: 28),
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          decoration: BoxDecoration(
+            color: selected ? activeBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(13),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: ShemaColors.seed.withValues(alpha: 0.28),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 17,
+                color: selected ? activeFg : inactiveFg,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? activeFg : inactiveFg,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: fgColor,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

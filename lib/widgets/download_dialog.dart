@@ -5,10 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n.dart';
+import '../theme.dart';
 
 /// Diálogo para ingresar una URL de YouTube y elegir formato MP3 o MP4.
 ///
-/// Incluye campo de texto con botón de pegar desde portapapeles.
+/// Botones tipo píldora negros/oscuros para MP4 y MP3.
 /// Retorna un Map con 'url' y 'type' ('audio' o 'video') al confirmar,
 /// o null si se cancela.
 class DownloadDialog extends StatefulWidget {
@@ -59,143 +60,225 @@ class _DownloadDialogState extends State<DownloadDialog> {
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
 
+    // Colores del botón primario adaptados al tema
+    final btnBg = isDark ? ShemaColors.buttonDark : ShemaColors.buttonLight;
+    final btnFg = isDark ? const Color(0xFF0A0A0A) : Colors.white;
+
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Título con icono y botón cerrar
+            // Encabezado: ícono + título + cerrar
             Row(
               children: [
-                const Icon(Icons.download_rounded,
-                    color: Color(0xFF2E7D32), size: 28),
-                const SizedBox(width: 10),
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: ShemaColors.seed.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.download_rounded,
+                      color: ShemaColors.seed, size: 22),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     s.downloadDialogTitle,
                     style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w700),
+                        fontSize: 20, fontWeight: FontWeight.w800,
+                        letterSpacing: -0.4),
                   ),
                 ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close, size: 22),
-                  style: IconButton.styleFrom(
-                    backgroundColor: colorScheme.surfaceContainerHighest,
-                    minimumSize: const Size(32, 32),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.close, size: 18,
+                        color: colorScheme.onSurfaceVariant),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Campo de texto para el link
             TextField(
               controller: widget.urlController,
               decoration: InputDecoration(
                 hintText: s.downloadUrlHint,
-                hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-                prefixIcon:
-                    const Icon(Icons.link, color: Color(0xFF2E7D32)),
+                prefixIcon: const Icon(Icons.link_rounded,
+                    color: ShemaColors.seed, size: 20),
                 suffixIcon: IconButton(
                   tooltip: s.clearTooltip,
                   onPressed: () => widget.urlController.clear(),
-                  icon: const Icon(Icons.clear, size: 20),
+                  icon: Icon(Icons.clear_rounded, size: 18,
+                      color: colorScheme.onSurfaceVariant),
                 ),
-                filled: true,
-                fillColor: colorScheme.surfaceContainerLowest,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: colorScheme.outline),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: colorScheme.outline),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                      color: Color(0xFF2E7D32), width: 2),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 14),
               ),
               keyboardType: TextInputType.url,
               maxLines: 1,
-              style: const TextStyle(fontSize: 14),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
             // Botón de pegar desde portapapeles
-            OutlinedButton.icon(
-              onPressed: _pasteFromClipboard,
-              icon: const Icon(Icons.content_paste, size: 20),
-              label: Text(s.pasteClipboard),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF2E7D32),
-                side: const BorderSide(color: Color(0xFF2E7D32)),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+            GestureDetector(
+              onTap: _pasteFromClipboard,
+              child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isDark ? ShemaColors.darkBorder : ShemaColors.lightBorder,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.content_paste_rounded, size: 18,
+                        color: colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 8),
+                    Text(
+                      s.pasteClipboard,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 20),
 
-            // Botones de descarga MP4 y MP3
+            // Botones MP4 y MP3 — estilo píldora negro
             Row(
               children: [
-                // Botón MP4
+                // MP4
                 Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _hasUrl
-                        ? () => Navigator.pop(context, {
-                              'url': widget.urlController.text.trim(),
-                              'type': 'video',
-                            })
-                        : null,
-                    icon: const Icon(Icons.movie_creation_outlined, size: 20),
-                    label: const Text('MP4'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF5722),
-                      disabledBackgroundColor:
-                          colorScheme.surfaceContainerHighest,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
+                  child: _DownloadButton(
+                    icon: Icons.videocam_rounded,
+                    label: 'MP4',
+                    sublabel: 'Video',
+                    enabled: _hasUrl,
+                    bgColor: btnBg,
+                    fgColor: btnFg,
+                    accentColor: ShemaColors.youtubeRed,
+                    onTap: () => Navigator.pop(context, {
+                      'url': widget.urlController.text.trim(),
+                      'type': 'video',
+                    }),
                   ),
                 ),
-                const SizedBox(width: 12),
-                // Botón MP3
+                const SizedBox(width: 10),
+                // MP3
                 Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _hasUrl
-                        ? () => Navigator.pop(context, {
-                              'url': widget.urlController.text.trim(),
-                              'type': 'audio',
-                            })
-                        : null,
-                    icon: const Icon(Icons.graphic_eq, size: 20),
-                    label: const Text('MP3'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF1565C0),
-                      disabledBackgroundColor:
-                          colorScheme.surfaceContainerHighest,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
+                  child: _DownloadButton(
+                    icon: Icons.graphic_eq_rounded,
+                    label: 'MP3',
+                    sublabel: 'Audio',
+                    enabled: _hasUrl,
+                    bgColor: btnBg,
+                    fgColor: btnFg,
+                    accentColor: ShemaColors.musicBlue,
+                    onTap: () => Navigator.pop(context, {
+                      'url': widget.urlController.text.trim(),
+                      'type': 'audio',
+                    }),
                   ),
                 ),
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Botón de descarga con ícono, etiqueta y subetiqueta de formato
+class _DownloadButton extends StatelessWidget {
+  const _DownloadButton({
+    required this.icon,
+    required this.label,
+    required this.sublabel,
+    required this.enabled,
+    required this.bgColor,
+    required this.fgColor,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String sublabel;
+  final bool enabled;
+  final Color bgColor;
+  final Color fgColor;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: AnimatedOpacity(
+        opacity: enabled ? 1.0 : 0.4,
+        duration: const Duration(milliseconds: 200),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              // Ícono con fondo de acento
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: isDark ? 0.25 : 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: accentColor, size: 20),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: fgColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              Text(
+                sublabel,
+                style: TextStyle(
+                  color: fgColor.withValues(alpha: 0.6),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

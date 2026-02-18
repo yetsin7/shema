@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../theme.dart';
 import '../services/directory_manager.dart';
 import '../services/download_service.dart';
 import 'home_screen.dart';
@@ -85,7 +86,15 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Verificar si el setup inicial ya fue completado
     final dirManager = DirectoryManager();
-    final setupDone = await dirManager.isSetupCompleted();
+    bool setupDone = await dirManager.isSetupCompleted();
+
+    // Si el setup fue completado con una versión vieja que usaba almacenamiento
+    // privado (/Android/data/), resetear para que el usuario elija la nueva
+    // ubicación y sus archivos se muevan al destino que él prefiera.
+    if (setupDone && await dirManager.hasOldPrivatePaths()) {
+      await dirManager.resetSetupCompleted();
+      setupDone = false;
+    }
 
     if (!mounted) return;
 
@@ -144,6 +153,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     // Texto de estado según el progreso
     final statusText = _progress < 0.3
         ? s.splashInitializing
@@ -151,8 +161,16 @@ class _SplashScreenState extends State<SplashScreen>
             ? s.splashLoadingYouTube
             : s.splashReady;
 
+    // Colores adaptados al modo claro/oscuro
+    final bgColor = isDark ? ShemaColors.darkBg : ShemaColors.lightBg;
+    final titleColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF1C1C1E);
+    final subtitleColor = isDark ? const Color(0xFF8D8D93) : const Color(0xFF6C6C70);
+    final statusColor = isDark ? const Color(0xFF636366) : const Color(0xFF8E8E93);
+    final progressBg = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFD1D1D6);
+    final progressFg = isDark ? ShemaColors.seed : ShemaColors.seed;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF1B5E20),
+      backgroundColor: bgColor,
       body: Center(
         child: FadeTransition(
           opacity: _fadeAnimation,
@@ -170,10 +188,10 @@ class _SplashScreenState extends State<SplashScreen>
               ),
               const SizedBox(height: 20),
               // Nombre de la app
-              const Text(
+              Text(
                 'Shema',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: titleColor,
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                 ),
@@ -182,7 +200,7 @@ class _SplashScreenState extends State<SplashScreen>
               // Subtítulo
               Text(
                 s.splashSubtitle,
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                style: TextStyle(color: subtitleColor, fontSize: 14),
               ),
               const SizedBox(height: 30),
               // Barra de progreso
@@ -192,9 +210,8 @@ class _SplashScreenState extends State<SplashScreen>
                   borderRadius: BorderRadius.circular(8),
                   child: LinearProgressIndicator(
                     value: _progress,
-                    backgroundColor: Colors.white24,
-                    valueColor:
-                        const AlwaysStoppedAnimation<Color>(Colors.white),
+                    backgroundColor: progressBg,
+                    valueColor: AlwaysStoppedAnimation<Color>(progressFg),
                     minHeight: 6,
                   ),
                 ),
@@ -203,7 +220,7 @@ class _SplashScreenState extends State<SplashScreen>
               // Estado actual
               Text(
                 statusText,
-                style: const TextStyle(color: Colors.white60, fontSize: 12),
+                style: TextStyle(color: statusColor, fontSize: 12),
               ),
             ],
           ),

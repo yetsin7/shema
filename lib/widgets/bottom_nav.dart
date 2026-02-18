@@ -1,4 +1,4 @@
-/// Barra de navegación inferior con efecto glassmorphism flotante.
+/// Barra de navegación inferior flotante con indicador tipo píldora.
 library;
 
 import 'dart:ui';
@@ -7,15 +7,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n.dart';
+import '../theme.dart';
 
-/// Barra de navegación inferior flotante con efecto glassmorphism.
+/// Barra de navegación inferior flotante con glassmorphism y pill activo.
 ///
-/// Usa [BackdropFilter] con blur para crear transparencia líquida.
-/// Contiene 5 pestañas: YouTube, Shorts, Música, Videos, Configuración.
-/// Se adapta automáticamente a la navegación Android (gestos vs botones)
-/// usando [MediaQuery.viewPadding.bottom].
+/// El ítem activo muestra un fondo tipo píldora con el color del tab.
+/// Usa [BackdropFilter] con blur para el efecto glass.
 class CustomBottomNav extends StatelessWidget {
-  /// Crea una barra de navegación con el [currentIndex] seleccionado
+  /// Crea la barra con el [currentIndex] seleccionado
   const CustomBottomNav({
     required this.currentIndex,
     required this.onIndexChanged,
@@ -31,36 +30,33 @@ class CustomBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Espacio inferior según navegación Android (gestos vs botones)
     final bottomInset = MediaQuery.of(context).viewPadding.bottom;
-    final bottomMargin = bottomInset > 0 ? bottomInset + 4 : 12.0;
+    final bottomMargin = bottomInset > 0 ? bottomInset + 6 : 14.0;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 0, 16, bottomMargin),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(32),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
           child: Container(
-            height: 72,
+            height: 68,
             decoration: BoxDecoration(
-              // Fondo translúcido para efecto glass
               color: isDark
-                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.92)
-                  : const Color(0xFFF4F7F2).withValues(alpha: 0.92),
-              borderRadius: BorderRadius.circular(28),
+                  ? const Color(0xFF1C1C1E).withValues(alpha: 0.95)
+                  : Colors.white.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(32),
               border: Border.all(
                 color: isDark
-                    ? Colors.white.withValues(alpha: 0.10)
-                    : Colors.black.withValues(alpha: 0.06),
+                    ? ShemaColors.darkBorder.withValues(alpha: 0.8)
+                    : ShemaColors.lightBorder.withValues(alpha: 0.9),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
-                  blurRadius: 28,
-                  spreadRadius: -2,
+                  color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.12),
+                  blurRadius: 32,
+                  spreadRadius: -4,
                   offset: const Offset(0, 8),
                 ),
               ],
@@ -69,11 +65,51 @@ class CustomBottomNav extends StatelessWidget {
               final s = S.of(context);
               return Row(
                 children: [
-                  _NavItem(index: 0, currentIndex: currentIndex, icon: Icons.play_circle_outline_rounded, activeIcon: Icons.play_circle_rounded, color: const Color(0xFFE53935), label: s.tabYouTube, onTap: onIndexChanged),
-                  _NavItem(index: 1, currentIndex: currentIndex, icon: Icons.slow_motion_video_outlined, activeIcon: Icons.slow_motion_video_rounded, color: const Color(0xFFFF6D00), label: s.tabShorts, onTap: onIndexChanged),
-                  _NavItem(index: 2, currentIndex: currentIndex, icon: Icons.music_note_outlined, activeIcon: Icons.music_note_rounded, color: const Color(0xFF1E88E5), label: s.tabMusic, onTap: onIndexChanged),
-                  _NavItem(index: 3, currentIndex: currentIndex, icon: Icons.video_library_outlined, activeIcon: Icons.video_library_rounded, color: const Color(0xFFFB8C00), label: s.tabVideos, onTap: onIndexChanged),
-                  _NavItem(index: 4, currentIndex: currentIndex, icon: Icons.settings_outlined, activeIcon: Icons.settings_rounded, color: const Color(0xFF78909C), label: s.settingsTitle, onTap: onIndexChanged),
+                  _NavItem(
+                    index: 0,
+                    currentIndex: currentIndex,
+                    icon: Icons.play_circle_outline_rounded,
+                    activeIcon: Icons.play_circle_rounded,
+                    color: ShemaColors.youtubeRed,
+                    label: s.tabYouTube,
+                    onTap: onIndexChanged,
+                  ),
+                  _NavItem(
+                    index: 1,
+                    currentIndex: currentIndex,
+                    icon: Icons.slow_motion_video_outlined,
+                    activeIcon: Icons.slow_motion_video_rounded,
+                    color: ShemaColors.shortsOrange,
+                    label: s.tabShorts,
+                    onTap: onIndexChanged,
+                  ),
+                  _NavItem(
+                    index: 2,
+                    currentIndex: currentIndex,
+                    icon: Icons.music_note_outlined,
+                    activeIcon: Icons.music_note_rounded,
+                    color: ShemaColors.musicBlue,
+                    label: s.tabMusic,
+                    onTap: onIndexChanged,
+                  ),
+                  _NavItem(
+                    index: 3,
+                    currentIndex: currentIndex,
+                    icon: Icons.video_library_outlined,
+                    activeIcon: Icons.video_library_rounded,
+                    color: ShemaColors.videoAmber,
+                    label: s.tabVideos,
+                    onTap: onIndexChanged,
+                  ),
+                  _NavItem(
+                    index: 4,
+                    currentIndex: currentIndex,
+                    icon: Icons.settings_outlined,
+                    activeIcon: Icons.settings_rounded,
+                    color: const Color(0xFF8E8E93),
+                    label: s.settingsTitle,
+                    onTap: onIndexChanged,
+                  ),
                 ],
               );
             }),
@@ -84,7 +120,7 @@ class CustomBottomNav extends StatelessWidget {
   }
 }
 
-/// Item de navegación solo icono con pill animado
+/// Ítem de navegación con pill animado sobre el ícono activo
 class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.index,
@@ -109,30 +145,36 @@ class _NavItem extends StatelessWidget {
     final isSelected = currentIndex == index;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final inactiveColor = isDark
-        ? Colors.white.withValues(alpha: 0.55)
-        : Colors.black.withValues(alpha: 0.5);
+        ? const Color(0xFF8D8D93)
+        : const Color(0xFFAEAEB2);
 
     return Expanded(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
-          // Vibración sutil al cambiar de pestaña
           HapticFeedback.selectionClick();
           onTap(index);
         },
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
+            // Píldora de fondo solo cuando está seleccionado
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOut,
+              width: isSelected ? 52 : 36,
+              height: 32,
+              decoration: BoxDecoration(
+                color: isSelected ? color.withValues(alpha: 0.15) : Colors.transparent,
+                borderRadius: BorderRadius.circular(50),
+              ),
               child: Icon(
                 isSelected ? activeIcon : icon,
-                key: ValueKey(isSelected),
-                size: isSelected ? 26 : 23,
+                size: isSelected ? 22 : 21,
                 color: isSelected ? color : inactiveColor,
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 3),
             Text(
               label,
               maxLines: 1,
@@ -141,6 +183,7 @@ class _NavItem extends StatelessWidget {
                 fontSize: 10,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 color: isSelected ? color : inactiveColor,
+                letterSpacing: isSelected ? -0.2 : 0.1,
               ),
             ),
           ],

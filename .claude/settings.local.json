@@ -36,7 +36,28 @@
       "Bash(\"/c/Program Files/Android/Android Studio/jbr/bin/keytool.exe\" -genkey -v -keystore \"/c/Dev/JDKs para mis Apps/Shema/shema.keystore\" -alias shema-release -keyalg RSA -keysize 2048 -validity 10000 -storepass \"Shema/12\" -keypass \"Shema/Llave7\" -dname \"CN=Yetsin Gutierrez, O=Cocibolka Apps\")",
       "Bash(flutter devices:*)",
       "Bash(flutter install:*)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(flutter create:*)",
+      "Bash(powershell -Command \"Get-ChildItem ''C:\\\\Users\\\\Yetsin\\\\Downloads\\\\'' | Where-Object { $_.Name -like ''*icon*'' }\")",
+      "Bash(powershell.exe -NoProfile -Command \"Copy-Item ''C:\\\\Users\\\\Yetsin\\\\Downloads\\\\icon_shema.png'' ''C:\\\\Dev\\\\shema\\\\assets\\\\icon_shema.png'' -Force; Write-Host ''OK''\")",
+      "Bash(powershell.exe -NoProfile -Command:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git fsck:*)",
+      "Bash(git -C \"C:/Dev/shema\" log --oneline)",
+      "Bash(git -C \"C:/Dev/shema\" show e182d4f:lib/services/directory_manager.dart)",
+      "Bash(git -C \"C:/Dev/shema\" config core.worktree)",
+      "Bash(git -C \"C:/Dev/shema\" rev-parse --git-dir)",
+      "Bash(git -C \"C:/Dev/shema\" cat-file blob e182d4f:lib/services/directory_manager.dart)",
+      "Bash(git -C \"C:/Dev/shema\" log --all --format=\"%H\" -- lib/services/directory_manager.dart)",
+      "Bash(git -C \"C:/Dev/shema\" show e182d4fadbbf294a1f1636613ec433c60595e69a:lib/services/directory_manager.dart)",
+      "Bash(git -C \"C:/Dev/shema\" show e182d4fadbbf294a1f1636613ec433c60595e69a)",
+      "Bash(git -C \"C:/Dev/shema\" log -1 --format=\"%H %T\" e182d4f)",
+      "Bash(git -C \"C:/Dev/shema\" ls-tree:*)",
+      "Bash(git -C:*)",
+      "Bash(python3:*)",
+      "Bash(node -e:*)"
     ]
   }
 }

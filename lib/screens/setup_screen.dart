@@ -45,10 +45,30 @@ class _SetupScreenState extends State<SetupScreen> {
   /// Ruta elegida para música (vacía hasta que el usuario la seleccione)
   String _musicPath = '';
 
+  /// True mientras se migran los archivos viejos al terminar el setup
+  bool _migrating = false;
+
+  /// Rutas guardadas de la versión anterior, capturadas ANTES de que el usuario
+  /// elija las nuevas (para moverlas al destino correcto al finalizar)
+  String? _oldMusicPath;
+  String? _oldVideoPath;
+
+  /// Future que garantiza que los paths viejos se leen antes de que _finishSetup los use
+  late final Future<void> _oldPathsFuture;
+
   @override
   void initState() {
     super.initState();
     _checkExistingPermission();
+    // Capturar paths viejos AHORA, antes de que pickFolder() los sobreescriba
+    _oldPathsFuture = _captureOldPaths();
+  }
+
+  /// Lee los paths guardados de la versión anterior sin modificar SharedPreferences
+  Future<void> _captureOldPaths() async {
+    final (music, video) = await _dirManager.readSavedDirectories();
+    _oldMusicPath = music;
+    _oldVideoPath = video;
   }
 
   /// Verifica si ya tiene permisos (por si el usuario los dio antes)
@@ -99,10 +119,22 @@ class _SetupScreenState extends State<SetupScreen> {
     });
   }
 
-  /// Completa el setup y navega al home
+  /// Completa el setup: migra archivos viejos a las carpetas elegidas y navega al home
   Future<void> _finishSetup() async {
+    setState(() => _migrating = true);
+
+    // Asegurar que los paths viejos ya fueron leídos
+    await _oldPathsFuture;
+
+    // Mover archivos de la versión anterior a las carpetas que el usuario eligió
+    await _dirManager.migrateFromOldPaths(
+      oldMusicPath: _oldMusicPath,
+      oldVideoPath: _oldVideoPath,
+    );
+
     await _dirManager.markSetupCompleted();
     if (!mounted) return;
+
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -281,14 +313,15 @@ class _SetupScreenState extends State<SetupScreen> {
         ),
         const Spacer(),
 
-        // Botón empezar: desactivado hasta que ambas carpetas estén elegidas
+        // Botón empezar: desactivado hasta que ambas carpetas estén elegidas;
+        // muestra spinner mientras se migran los archivos al terminar
         Padding(
           padding: const EdgeInsets.only(bottom: 32),
           child: SizedBox(
             width: double.infinity,
             height: 54,
             child: FilledButton(
-              onPressed: bothChosen ? _finishSetup : null,
+              onPressed: (bothChosen && !_migrating) ? _finishSetup : null,
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: const Color(0xFF1B5E20),
@@ -298,7 +331,16 @@ class _SetupScreenState extends State<SetupScreen> {
                 textStyle:
                     const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
-              child: Text(bothChosen ? s.setupStart : s.setupChooseBothFirst),
+              child: _migrating
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Color(0xFF1B5E20),
+                      ),
+                    )
+                  : Text(bothChosen ? s.setupStart : s.setupChooseBothFirst),
             ),
           ),
         ),

@@ -9,6 +9,7 @@ import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.yausername.ffmpeg.FFmpeg
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.provider.DocumentsContract
@@ -93,6 +94,15 @@ class MainActivity : FlutterActivity() {
                         val path = call.argument<String>("path") ?: ""
                         openInShemaPlayer(path)
                         result.success(true)
+                    }
+                    "isShemaPlayerInstalled" -> {
+                        val installed = try {
+                            packageManager.getApplicationInfo("com.cocibolka.shemaplayer", 0)
+                            true
+                        } catch (e: PackageManager.NameNotFoundException) {
+                            false
+                        }
+                        result.success(installed)
                     }
                     else -> result.notImplemented()
                 }

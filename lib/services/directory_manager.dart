@@ -76,6 +76,50 @@ class DirectoryManager {
     return prefs.getBool(_setupCompletedKey) ?? false;
   }
 
+  /// Detecta si las rutas guardadas son del almacenamiento privado de la app
+  /// (/Android/data/), lo que indica que el usuario tiene una versión antigua
+  /// que guardaba archivos en almacenamiento privado en lugar del público.
+  Future<bool> hasOldPrivatePaths() async {
+    final prefs = await SharedPreferences.getInstance();
+    final music = prefs.getString(_musicDirKey) ?? '';
+    final video = prefs.getString(_videoDirKey) ?? '';
+    return music.contains('/Android/data/') || video.contains('/Android/data/');
+  }
+
+  /// Resetea el flag de setup para forzar que el wizard aparezca de nuevo
+  Future<void> resetSetupCompleted() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_setupCompletedKey);
+  }
+
+  /// Lee las rutas actualmente guardadas en SharedPreferences sin modificar nada.
+  ///
+  /// Útil para capturar los paths viejos ANTES de que el usuario elija los nuevos
+  /// en el wizard de setup, para luego mover los archivos al destino correcto.
+  Future<(String?, String?)> readSavedDirectories() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? clean(String? raw) {
+      final t = raw?.trim() ?? '';
+      return t.isEmpty ? null : t;
+    }
+    return (
+      clean(prefs.getString(_musicDirKey)),
+      clean(prefs.getString(_videoDirKey)),
+    );
+  }
+
+  /// Mueve archivos desde las rutas viejas hasta las carpetas actualmente configuradas.
+  ///
+  /// Llamar después de que el usuario haya elegido sus carpetas en el wizard,
+  /// para preservar los archivos descargados con la versión anterior de la app.
+  Future<void> migrateFromOldPaths({
+    required String? oldMusicPath,
+    required String? oldVideoPath,
+  }) async {
+    if (musicDirectory != null) await _migrateFiles(oldMusicPath, musicDirectory!);
+    if (videoDirectory != null) await _migrateFiles(oldVideoPath, videoDirectory!);
+  }
+
   /// Marca el setup inicial como completado
   Future<void> markSetupCompleted() async {
     final prefs = await SharedPreferences.getInstance();
@@ -158,6 +202,8 @@ class DirectoryManager {
   /// Mueve archivos de una carpeta vieja a la nueva (migración silenciosa)
   Future<void> _migrateFiles(String? oldPath, String newPath) async {
     if (oldPath == null || oldPath.isEmpty) return;
+    // Evitar borrar archivos si origen y destino son la misma carpeta
+    if (_normalizePath(oldPath) == _normalizePath(newPath)) return;
     final oldDir = Directory(oldPath);
     if (!await oldDir.exists()) return;
 

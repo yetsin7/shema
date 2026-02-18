@@ -223,9 +223,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    'Shema',
-                    style: TextStyle(
+                  Text(
+                    S.of(context).appName,
+                    style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.5,
@@ -233,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   Text(
-                    'YouTube Downloader',
+                    S.of(context).appTagline,
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
@@ -272,12 +272,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.download_rounded, color: Colors.white, size: 18),
-                        SizedBox(width: 5),
-                        Text('Bajar',
-                            style: TextStyle(
+                        const Icon(Icons.download_rounded, color: Colors.white, size: 18),
+                        const SizedBox(width: 5),
+                        Text(S.of(context).downloadButton,
+                            style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700)),

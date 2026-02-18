@@ -1,4 +1,4 @@
-/// Componente de tarjeta para mostrar archivos de medios y tareas de descarga.
+/// Componente de tarjeta showcase para archivos de medios y tareas de descarga.
 library;
 
 import 'dart:io';
@@ -8,14 +8,13 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/download_service.dart';
 import '../l10n.dart';
+import '../theme.dart';
 import 'media_card_parts.dart';
 
-/// Tarjeta unificada para mostrar tareas de descarga y archivos en disco.
+/// Tarjeta vertical showcase para tareas de descarga y archivos en disco.
 ///
-/// Puede representar una tarea de descarga ([task]) o un archivo local ([file]).
-/// Muestra estado (en cola, descargando, completado, error), metadatos
-/// (calidad, formato, tamaño), y acciones contextuales (reproducir, eliminar,
-/// reintentar, cancelar).
+/// Diseño premium: cabecera de 120px con gradiente/thumbnail + scrim + título,
+/// chips de metadatos e botones de acción debajo. Sin borde, shadow profunda.
 class MediaCard extends StatelessWidget {
   /// Crea una tarjeta de medio. Debe tener al menos [task] o [file].
   const MediaCard({
@@ -32,38 +31,20 @@ class MediaCard extends StatelessWidget {
     super.key,
   });
 
-  /// Tarea de descarga asociada (null si es solo un archivo local)
   final DownloadTask? task;
-
-  /// Archivo en disco (null si la descarga no ha completado)
   final File? file;
-
-  /// Tipo de medio para determinar iconos y colores
   final MediaKind kind;
-
-  /// Color principal del icono según tipo (azul para audio, naranja para video)
   final Color iconColor;
-
-  /// Color de fondo tenue para el borde y decoraciones
   final Color tileTint;
-
-  /// Callback para reproducir un archivo completado
   final Future<void> Function(File) onPlay;
-
-  /// Callback para reintentar una descarga fallida
   final Future<void> Function(DownloadTask)? onRetry;
-
-  /// Callback para eliminar archivo/tarea con confirmación
   final Future<void> Function({DownloadTask? task, File? file, required String name}) onDelete;
-
-  /// Callback para cancelar una tarea en cola (antes de iniciar)
   final void Function(DownloadTask)? onCancel;
-
-  /// Callback para cancelar una descarga en progreso
   final void Function(DownloadTask)? onCancelDownload;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isTask = task != null;
     final queued = isTask && task!.status == DownloadStatus.queued;
     final downloading = isTask && task!.status == DownloadStatus.downloading;
@@ -71,6 +52,7 @@ class MediaCard extends StatelessWidget {
     final failed = isTask && task!.status == DownloadStatus.failed;
     final isAudio = kind == MediaKind.audio;
     final mediaFile = file;
+
     final String name;
     final String? sizeMb, quality;
     DateTime? date;
@@ -80,107 +62,128 @@ class MediaCard extends StatelessWidget {
       quality = task!.quality;
       final f = mediaFile;
       if (f != null && f.existsSync()) {
-        sizeMb = (f.statSync().size / (1024 * 1024)).toStringAsFixed(2);
-        try {
-          date = f.lastModifiedSync();
-        } catch (_) {}
+        sizeMb = (f.statSync().size / (1024 * 1024)).toStringAsFixed(1);
+        try { date = f.lastModifiedSync(); } catch (_) {}
       } else {
         sizeMb = null;
       }
-      
-      // Si la tarea está completada pero no tenemos archivo cargado, intentamos buscarlo
       if (completed && date == null && task!.filePath != null) {
         final f = File(task!.filePath!);
         if (f.existsSync()) {
-             try {
-               date = f.lastModifiedSync();
-             } catch (_) {}
+          try { date = f.lastModifiedSync(); } catch (_) {}
         }
       }
     } else {
       final path = file!.path;
       name = path.split(Platform.pathSeparator).last.replaceAll(RegExp(r'\.\w+$'), '');
-      sizeMb = (file!.statSync().size / (1024 * 1024)).toStringAsFixed(2);
+      sizeMb = (file!.statSync().size / (1024 * 1024)).toStringAsFixed(1);
       quality = null;
-      try {
-        date = file!.lastModifiedSync();
-      } catch (_) {}
+      try { date = file!.lastModifiedSync(); } catch (_) {}
     }
-    
+
     final s = S.of(context);
-    final statusText = failed ? s.error : queued ? s.queued : downloading ? '${(task!.progress * 100).toStringAsFixed(0)}%' : s.completed;
+    final statusText = failed
+        ? s.error
+        : queued
+            ? s.queued
+            : downloading
+                ? '${(task!.progress * 100).toStringAsFixed(0)}%'
+                : s.completed;
 
     String? dateStr;
     if (date != null) {
       dateStr = DateFormat('d MMM, HH:mm', s.locale.languageCode).format(date);
     }
 
-    // Determinar si el card es tappeable (archivo completado disponible)
     final tappable = completed && !failed && mediaFile != null;
+    final btnBg = isDark ? ShemaColors.buttonDark : ShemaColors.buttonLight;
+    final btnFg = isDark ? const Color(0xFF0A0A0A) : Colors.white;
+
+    // Badge compacto para el header (sobre el gradiente)
+    final statusBadge = buildStatusChip(
+      context,
+      label: statusText,
+      failed: failed,
+      completed: completed && !failed,
+      queued: queued,
+      iconColor: iconColor,
+      compact: true,
+    );
 
     return GestureDetector(
-      onTap: tappable ? () => const MethodChannel('com.cocibolka.shema/ytdlp')
-          .invokeMethod('openFolder', {'path': mediaFile!.parent.path}) : null,
+      onTap: tappable
+          ? () => const MethodChannel('com.cocibolka.shema/ytdlp')
+              .invokeMethod('openFolder', {'path': mediaFile.parent.path})
+          : null,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
+        margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
-          border: Border.all(color: downloading ? iconColor.withValues(alpha: 0.4) : tileTint.withValues(alpha: 0.85)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
+          borderRadius: BorderRadius.circular(ShemaRadius.card),
+          color: isDark ? ShemaColors.darkCard : ShemaColors.lightCard,
+          // Sin border — la profundidad viene de la shadow
+          boxShadow: ShemaShadow.deep(isDark: isDark, tintColor: iconColor),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Columna izquierda: thumbnail + botón compartir debajo
-              Column(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Cabecera visual 120px ─────────────────────
+            buildCardHeader(
+              context: context,
+              isAudio: isAudio,
+              accentColor: iconColor,
+              task: task,
+              title: name,
+              statusBadge: statusBadge,
+            ),
+
+            // ── Metadatos + acciones ──────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  buildMediaThumbnail(context: context, isAudio: isAudio, completed: completed && !failed, task: task),
-                  if (tappable) ...[
-                    const SizedBox(height: 6),
-                    SizedBox(width: 40, height: 36, child: IconButton(
-                      onPressed: () => SharePlus.instance.share(ShareParams(files: [XFile(mediaFile.path)])),
-                      icon: const Icon(Icons.share_rounded, size: 16),
-                      style: IconButton.styleFrom(
-                        foregroundColor: iconColor,
-                        side: BorderSide(color: iconColor.withValues(alpha: 0.3)),
-                        padding: EdgeInsets.zero,
-                      ),
-                    )),
-                  ],
+                  // Chips de metadatos
+                  Wrap(spacing: 5, runSpacing: 5, children: [
+                    if (quality != null)
+                      buildMetaChip(context,
+                          icon: Icons.hd_rounded,
+                          label: quality,
+                          iconColor: iconColor),
+                    buildMetaChip(context,
+                        icon: isAudio
+                            ? Icons.music_note_rounded
+                            : Icons.videocam_rounded,
+                        label: isAudio ? 'MP3' : 'MP4',
+                        iconColor: iconColor),
+                    if (sizeMb != null)
+                      buildMetaChip(context,
+                          icon: Icons.sd_storage_rounded,
+                          label: '$sizeMb MB',
+                          iconColor: iconColor),
+                    if (dateStr != null)
+                      buildMetaChip(context,
+                          icon: Icons.access_time_rounded,
+                          label: dateStr,
+                          iconColor: iconColor),
+                  ]),
+
+                  // Botones de acción según estado
+                  ..._buildActions(
+                    context,
+                    s,
+                    queued: queued,
+                    downloading: downloading,
+                    completed: completed,
+                    failed: failed,
+                    mediaFile: mediaFile,
+                    name: name,
+                    btnBg: btnBg,
+                    btnFg: btnFg,
+                  ),
                 ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: tappable ? () => const MethodChannel('com.cocibolka.shema/ytdlp')
-                              .invokeMethod('openFolder', {'path': mediaFile!.parent.path}) : null,
-                          child: buildStatusChip(context, label: statusText, failed: failed, completed: completed && !failed, queued: queued, iconColor: iconColor),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(spacing: 6, runSpacing: 4, children: [
-                      if (quality != null) buildMetaChip(context, icon: Icons.high_quality_rounded, label: quality, iconColor: iconColor),
-                      buildMetaChip(context, icon: isAudio ? Icons.music_note_rounded : Icons.videocam_rounded, label: isAudio ? 'MP3' : 'MP4', iconColor: iconColor),
-                      if (sizeMb != null) buildMetaChip(context, icon: Icons.data_usage_rounded, label: '$sizeMb MB', iconColor: iconColor),
-                      if (dateStr != null) buildMetaChip(context, icon: Icons.calendar_today_rounded, label: dateStr, iconColor: iconColor),
-                    ]),
-                    ..._buildActions(context, s, queued: queued, downloading: downloading, completed: completed, failed: failed, mediaFile: mediaFile, name: name),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -196,86 +199,240 @@ class MediaCard extends StatelessWidget {
     required bool failed,
     required File? mediaFile,
     required String name,
+    required Color btnBg,
+    required Color btnFg,
   }) {
     if (queued) {
       return [
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => onCancel?.call(task!),
-            icon: const Icon(Icons.close, size: 16),
-            label: Text(s.cancel),
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.grey.shade600, side: BorderSide(color: Colors.grey.shade300), padding: const EdgeInsets.symmetric(vertical: 6)),
-          ),
+        const SizedBox(height: 10),
+        _ActionButton(
+          label: s.cancel,
+          icon: Icons.close_rounded,
+          isOutlined: true,
+          onTap: () => onCancel?.call(task!),
         ),
       ];
     }
+
     if (downloading) {
       return [
         const SizedBox(height: 10),
-        ClipRRect(borderRadius: BorderRadius.circular(999), child: LinearProgressIndicator(
-          value: task!.progress, minHeight: 6,
-          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-          valueColor: AlwaysStoppedAnimation<Color>(iconColor),
-        )),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => onCancelDownload?.call(task!),
-            icon: const Icon(Icons.close, size: 16),
-            label: Text(s.cancel),
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700, side: BorderSide(color: Colors.red.shade200), padding: const EdgeInsets.symmetric(vertical: 6)),
+        // Barra de progreso con color de acento
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: task!.progress,
+            minHeight: 5,
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            valueColor: AlwaysStoppedAnimation<Color>(iconColor),
           ),
+        ),
+        const SizedBox(height: 8),
+        _ActionButton(
+          label: s.cancel,
+          icon: Icons.close_rounded,
+          isOutlined: true,
+          isDestructive: true,
+          onTap: () => onCancelDownload?.call(task!),
         ),
       ];
     }
+
     if (failed) {
       return [
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: FilledButton.icon(
-            onPressed: () => onRetry?.call(task!), icon: const Icon(Icons.refresh_rounded, size: 16), label: Text(s.retry),
-            style: FilledButton.styleFrom(backgroundColor: iconColor, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 8)),
-          )),
+          Expanded(
+            child: _ActionButton(
+              label: s.retry,
+              icon: Icons.refresh_rounded,
+              bgColor: btnBg,
+              fgColor: btnFg,
+              onTap: () => onRetry?.call(task!),
+            ),
+          ),
           const SizedBox(width: 8),
-          Expanded(child: OutlinedButton.icon(
-            onPressed: () => onCancel?.call(task!), icon: const Icon(Icons.delete_outline, size: 16), label: Text(s.delete),
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700, side: BorderSide(color: Colors.red.shade200), padding: const EdgeInsets.symmetric(vertical: 8)),
-          )),
+          Expanded(
+            child: _ActionButton(
+              label: s.delete,
+              icon: Icons.delete_outline_rounded,
+              isOutlined: true,
+              isDestructive: true,
+              onTap: () => onCancel?.call(task!),
+            ),
+          ),
         ]),
       ];
     }
+
     if (completed && !failed) {
       return [
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Row(children: [
-          Expanded(child: FilledButton.icon(
-            onPressed: mediaFile == null ? null : () => onPlay(mediaFile), icon: const Icon(Icons.play_arrow_rounded, size: 18), label: Text(s.play),
-            style: FilledButton.styleFrom(backgroundColor: iconColor, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 8)),
-          )),
-          const SizedBox(width: 8),
-          // Botón para abrir en Shema Player
-          SizedBox(width: 44, height: 40, child: IconButton(
-            onPressed: mediaFile == null ? null : () => const MethodChannel('com.cocibolka.shema/ytdlp')
-                .invokeMethod('openInShemaPlayer', {'path': mediaFile.path}),
-            icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
-            tooltip: s.openInPlayer,
-            style: IconButton.styleFrom(
-              foregroundColor: const Color(0xFF1B5E20),
-              side: const BorderSide(color: Color(0x4D1B5E20)),
-              padding: EdgeInsets.zero,
+          // Botón reproducir — píldora negra/blanca
+          Expanded(
+            child: _ActionButton(
+              label: s.play,
+              icon: Icons.play_arrow_rounded,
+              bgColor: btnBg,
+              fgColor: btnFg,
+              onTap: mediaFile == null ? null : () => onPlay(mediaFile),
             ),
-          )),
+          ),
           const SizedBox(width: 8),
-          Expanded(child: OutlinedButton.icon(
-            onPressed: () => onDelete(task: task, file: mediaFile, name: name), icon: const Icon(Icons.delete_outline, size: 18), label: Text(s.delete),
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700, side: BorderSide(color: Colors.red.shade200), padding: const EdgeInsets.symmetric(vertical: 8)),
-          )),
+          // Botón compartir
+          GestureDetector(
+            onTap: mediaFile == null
+                ? null
+                : () => SharePlus.instance
+                    .share(ShareParams(files: [XFile(mediaFile.path)])),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(ShemaRadius.button),
+              ),
+              child: Icon(Icons.share_rounded,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Botón Shema Player
+          GestureDetector(
+            onTap: mediaFile == null
+                ? null
+                : () => const MethodChannel('com.cocibolka.shema/ytdlp')
+                    .invokeMethod('openInShemaPlayer', {'path': mediaFile.path}),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: ShemaColors.seed.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(ShemaRadius.button),
+              ),
+              child: const Icon(Icons.play_circle_outline_rounded,
+                  color: ShemaColors.seed, size: 20),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Botón eliminar
+          GestureDetector(
+            onTap: () => onDelete(task: task, file: mediaFile, name: name),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(ShemaRadius.button),
+              ),
+              child: const Icon(Icons.delete_outline_rounded,
+                  color: Color(0xFFEF4444), size: 20),
+            ),
+          ),
         ]),
       ];
     }
+
     return [];
+  }
+}
+
+/// Botón de acción reutilizable: relleno o contorno
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.label,
+    required this.icon,
+    this.bgColor,
+    this.fgColor,
+    this.isOutlined = false,
+    this.isDestructive = false,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color? bgColor;
+  final Color? fgColor;
+  final bool isOutlined;
+  final bool isDestructive;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const destructiveColor = Color(0xFFEF4444);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (isOutlined) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 40,
+          decoration: BoxDecoration(
+            color: isDestructive
+                ? destructiveColor.withValues(alpha: 0.08)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(ShemaRadius.button),
+            border: Border.all(
+              color: isDestructive
+                  ? destructiveColor.withValues(alpha: 0.3)
+                  : (isDark ? ShemaColors.darkBorder : ShemaColors.lightBorder),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  size: 16,
+                  color: isDestructive
+                      ? destructiveColor
+                      : Theme.of(context).colorScheme.onSurfaceVariant),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDestructive
+                      ? destructiveColor
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedOpacity(
+        opacity: onTap == null ? 0.4 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        child: Container(
+          height: 40,
+          decoration: BoxDecoration(
+            color: bgColor ?? ShemaColors.buttonLight,
+            borderRadius: BorderRadius.circular(ShemaRadius.button),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: fgColor ?? Colors.white),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: fgColor ?? Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

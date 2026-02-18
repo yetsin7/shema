@@ -3,10 +3,12 @@ library;
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import '../services/download_center.dart';
 import '../services/download_service.dart';
 import '../l10n.dart';
+import '../theme.dart';
 import '../widgets/media_card.dart';
 
 /// Pantalla genérica de biblioteca de medios (música o video)
@@ -100,16 +102,74 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     if (!mounted) return;
     setState(() => _files = loaded);
   }
-  /// Abre un archivo de medios con la app predeterminada
+  static const _channel = MethodChannel('com.cocibolka.shema/ytdlp');
+
+  /// Verifica si Shema Player (com.cocibolka.shemaplayer) está instalado
+  Future<bool> _isShemaPlayerInstalled() async {
+    try {
+      return await _channel.invokeMethod<bool>('isShemaPlayerInstalled') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Abre un archivo: en Shema Player si está instalado, o con el chooser del
+  /// sistema si no lo está. En ese segundo caso muestra un banner promocional.
   Future<void> _openMedia(File file) async {
     if (!await file.exists()) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(S.of(context).fileNotAvailable)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(S.of(context).fileNotAvailable)),
+      );
       return;
     }
+
+    final shemaInstalled = await _isShemaPlayerInstalled();
+
+    if (shemaInstalled) {
+      // Reproducir directamente en Shema Player
+      await _channel.invokeMethod('openInShemaPlayer', {'path': file.path});
+      return;
+    }
+
+    // Abrir con el reproductor que el usuario elija
     final result = await OpenFilex.open(file.path);
-    if (!mounted || result.type == ResultType.done) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(S.of(context).cantOpenFile)));
+    if (!mounted) return;
+
+    if (result.type != ResultType.done) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(S.of(context).cantOpenFile)),
+      );
+      return;
+    }
+
+    // Mostrar banner promocional de Shema Player
+    _showShemaPlayerPromo();
+  }
+
+  /// Muestra un bottom sheet promocionando la instalación de Shema Player
+  void _showShemaPlayerPromo() {
+    // Altura del nav bar flotante + safe area para que la card quede por encima
+    final navOffset = MediaQuery.of(context).viewPadding.bottom + 90.0;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ShemaPlayerPromoSheet(
+            onInstall: () {
+              Navigator.pop(ctx);
+              _channel.invokeMethod('openInShemaPlayer', {'path': ''});
+            },
+            onDismiss: () => Navigator.pop(ctx),
+          ),
+          // Espacio transparente debajo de la card para elevarla sobre el nav bar
+          SizedBox(height: navOffset),
+        ],
+      ),
+    );
   }
   /// Abre la carpeta de descargas actual
   Future<void> _openCurrentDownloadDirectory() async {
@@ -261,12 +321,8 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                               const SizedBox(width: 6),
                               Text(
                                 widget.kind == MediaKind.audio
-                                    ? (S.of(context).locale.languageCode == 'es'
-                                        ? 'Tu música aparecerá aquí'
-                                        : 'Your music will appear here')
-                                    : (S.of(context).locale.languageCode == 'es'
-                                        ? 'Tus videos aparecerán aquí'
-                                        : 'Your videos will appear here'),
+                                    ? S.of(context).emptyMusicHint
+                                    : S.of(context).emptyVideoHint,
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -283,33 +339,85 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
               );
             }
             return RefreshIndicator(onRefresh: _refresh, child: ListView(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
               children: [
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                      colors: [widget.iconColor.withValues(alpha: 0.12), widget.tileTint]),
-                    border: Border.all(color: widget.iconColor.withValues(alpha: 0.18)),
+                // ── Header Large Title estilo iOS ───────────────────────────
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Ícono grande con gradiente + sombra de color
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              widget.iconColor,
+                              HSLColor.fromColor(widget.iconColor)
+                                  .withLightness((HSLColor.fromColor(widget.iconColor).lightness - 0.15).clamp(0.0, 1.0))
+                                  .toColor(),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: widget.iconColor.withValues(alpha: 0.32),
+                              blurRadius: 12,
+                              spreadRadius: -2,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Icon(widget.icon, color: Colors.white, size: 28),
+                      ),
+                      const SizedBox(width: 14),
+                      // Título grande + contador de elementos
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.title,
+                              style: const TextStyle(
+                                fontSize: 30,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.8,
+                                height: 1.0,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              S.of(context).itemCount(tasks.length + uniqueFiles.length),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Botón abrir carpeta
+                      GestureDetector(
+                        onTap: _openCurrentDownloadDirectory,
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: widget.iconColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(Icons.folder_open_rounded,
+                              color: widget.iconColor, size: 22),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Row(children: [
-                    Container(width: 42, height: 42,
-                      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(12)),
-                      child: Icon(widget.icon, color: widget.iconColor)),
-                    const SizedBox(width: 10),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(widget.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 2),
-                      Text(widget.downloadDirectory == null ? S.of(context).folderNotConfigured : S.of(context).folderPath(widget.downloadDirectory!),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w500)),
-                    ])),
-                    IconButton(tooltip: S.of(context).openFolderTooltip, onPressed: _openCurrentDownloadDirectory,
-                      icon: const Icon(Icons.folder_open_rounded), color: widget.iconColor),
-                  ]),
                 ),
-                const SizedBox(height: 10),
                 ...tasks.map((task) => MediaCard(task: task, file: _taskFile(task), kind: widget.kind,
                   iconColor: widget.iconColor, tileTint: widget.tileTint, onPlay: _openMedia, onRetry: _retryFailedTask,
                   onDelete: _confirmDelete, onCancel: (task) => widget.downloadCenter.removeTask(task.id),
@@ -320,6 +428,167 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
             ));
         }
       },
+    );
+  }
+}
+
+/// Bottom sheet promocional que aparece cuando el usuario reproduce con otra app
+/// porque Shema Player no está instalado.
+class _ShemaPlayerPromoSheet extends StatelessWidget {
+  const _ShemaPlayerPromoSheet({
+    required this.onInstall,
+    required this.onDismiss,
+  });
+
+  final VoidCallback onInstall;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final s = S.of(context);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+      decoration: BoxDecoration(
+        color: isDark ? ShemaColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: ShemaColors.seed.withValues(alpha: 0.18),
+            blurRadius: 32,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Pill de arrastre
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : Colors.black12,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+
+            // Fila: icono + textos
+            Row(
+              children: [
+                // Icono real de Shema Player con sombra
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: ShemaColors.seed.withValues(alpha: 0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.asset(
+                      'assets/icon_shema_player.png',
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+
+                // Textos
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Shema Player',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Theme.of(context).colorScheme.onSurface,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        s.shemaPlayerPromoText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // Botones
+            Row(
+              children: [
+                // Botón descartar
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onDismiss,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      side: BorderSide(
+                        color: isDark ? ShemaColors.darkBorder : ShemaColors.lightBorder,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(
+                      s.shemaPlayerNotNow,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                // Botón instalar
+                Expanded(
+                  flex: 2,
+                  child: FilledButton.icon(
+                    onPressed: onInstall,
+                    icon: const Icon(Icons.download_rounded, size: 18),
+                    label: Text(
+                      s.shemaPlayerInstallFree,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: ShemaColors.seed,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

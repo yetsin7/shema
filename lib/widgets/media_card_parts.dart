@@ -81,19 +81,19 @@ Widget buildCardHeader({
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Icono del tipo de medio
+                  // Icono del tipo de medio — fondo blanco sólido con ícono de color
                   Container(
                     width: 26,
                     height: 26,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.20),
+                      color: Colors.white.withValues(alpha: 0.92),
                       borderRadius: BorderRadius.circular(7),
                     ),
                     child: Icon(
                       isAudio
                           ? Icons.graphic_eq_rounded
                           : Icons.movie_creation_outlined,
-                      color: Colors.white,
+                      color: accentColor,
                       size: 15,
                     ),
                   ),
@@ -125,10 +125,13 @@ Widget _buildGradient(Color top, Color bottom) {
   );
 }
 
-/// Texto con scroll horizontal continuo (marquee) cuando el texto no cabe en el ancho.
+/// Texto con efecto marquee: espera 1.5s al entrar, luego scroll continuo,
+/// pausa 1s al completar cada ciclo completo.
 ///
-/// Si el texto cabe, se muestra estático. Si no cabe, desplaza de derecha a izquierda
-/// de forma continua y seamless, con fade en el borde derecho.
+/// Si el texto cabe en el ancho se muestra estático.
+/// Si no cabe, aguarda 1.5s (para que el usuario pueda leer el título al llegar
+/// a la pantalla), luego empieza a desplazarse. Al completar un ciclo pausa 1s
+/// y repite. Un ClipRect evita que el texto pinte sobre el icono a su izquierda.
 class _MarqueeText extends StatefulWidget {
   const _MarqueeText({required this.text, required this.style});
 
@@ -146,10 +149,41 @@ class _MarqueeTextState extends State<_MarqueeText>
   /// Velocidad de desplazamiento en píxeles por segundo
   static const _speed = 38.0;
 
+  /// Espacio entre el final del texto y el inicio de la siguiente copia
+  static const _gap = 44.0;
+
+  bool _loopStarted = false;
+
+  /// Incrementar al resetear invalida cualquier _runLoop anterior en vuelo
+  int _generation = 0;
+
+  /// Estado anterior del TickerMode para detectar cuando el tab se vuelve visible
+  /// Inicia en true para que el primer didChangeDependencies no dispare un reset
+  bool _tickerWasEnabled = true;
+
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(vsync: this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final enabled = TickerMode.of(context);
+    // Cuando el tab pasa de oculto a visible, reiniciar el marquee con delay
+    if (enabled && !_tickerWasEnabled) {
+      _resetMarquee();
+    }
+    _tickerWasEnabled = enabled;
+  }
+
+  /// Detiene la animación y restablece el estado para el próximo delay inicial
+  void _resetMarquee() {
+    _generation++;
+    _ctrl.stop();
+    _ctrl.reset();
+    _loopStarted = false;
   }
 
   @override
@@ -158,10 +192,35 @@ class _MarqueeTextState extends State<_MarqueeText>
     super.dispose();
   }
 
+  void _startLoop(double cycleW) {
+    if (_loopStarted) return;
+    _loopStarted = true;
+    _ctrl.duration = Duration(milliseconds: (cycleW / _speed * 1000).round());
+    _runLoop(_generation);
+  }
+
+  Future<void> _runLoop(int gen) async {
+    if (!mounted || gen != _generation) return;
+    // Pausa de 1.5s al llegar: el usuario puede leer el título antes de que empiece a moverse
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (!mounted || gen != _generation) return;
+    // Desplaza un ciclo completo (texto + hueco)
+    try {
+      await _ctrl.forward(from: 0).orCancel;
+    } on TickerCanceled {
+      return;
+    }
+    if (!mounted || gen != _generation) return;
+    // Pausa 1s cuando la primera letra está de nuevo en la posición del icono
+    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted || gen != _generation) return;
+    _ctrl.reset();
+    _runLoop(gen);
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (_, constraints) {
-      // Medir el ancho real del texto sin restricción
       final tp = TextPainter(
         text: TextSpan(text: widget.text, style: widget.style),
         textDirection: TextDirection.ltr,
@@ -171,71 +230,70 @@ class _MarqueeTextState extends State<_MarqueeText>
       final textW = tp.width;
       final boxW = constraints.maxWidth;
 
-      // Si cabe, texto estático
       if (textW <= boxW) {
         return Text(widget.text, style: widget.style, maxLines: 1);
       }
 
-      // Configurar duración según velocidad constante
-      const gap = 44.0;
+      // Un ciclo completo = ancho del texto + hueco hasta la siguiente copia
+      const gap = _gap;
       final cycleW = textW + gap;
-      final cycleDuration =
-          Duration(milliseconds: (cycleW / _speed * 1000).round());
 
-      if (_ctrl.duration != cycleDuration) {
-        _ctrl.duration = cycleDuration;
-        _ctrl.repeat();
-      } else if (!_ctrl.isAnimating) {
-        _ctrl.repeat();
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _startLoop(cycleW);
+      });
 
-      // Scroll seamless: dos copias del texto se turnan
-      return ShaderMask(
-        shaderCallback: (rect) => LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [Colors.white, Colors.white, Colors.transparent],
-          stops: const [0.0, 0.82, 1.0],
-        ).createShader(rect),
-        blendMode: BlendMode.dstIn,
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            // Invisible para dar altura al Stack
-            Opacity(
-              opacity: 0,
-              child: Text(widget.text, style: widget.style, maxLines: 1),
-            ),
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _ctrl,
-                builder: (_, _) {
-                  final shift = _ctrl.value * cycleW;
-                  return OverflowBox(
-                    alignment: Alignment.centerLeft,
-                    maxWidth: double.infinity,
-                    child: Transform.translate(
-                      offset: Offset(-shift, 0),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(widget.text,
-                              style: widget.style,
-                              maxLines: 1,
-                              softWrap: false),
-                          SizedBox(width: gap),
-                          Text(widget.text,
-                              style: widget.style,
-                              maxLines: 1,
-                              softWrap: false),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+      // ClipRect garantiza que el texto animado no pinte fuera de su área
+      // y no se superponga sobre el icono a la izquierda
+      return ClipRect(
+        child: ShaderMask(
+          shaderCallback: (rect) => const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Colors.white, Colors.white, Colors.transparent],
+            stops: [0.0, 0.82, 1.0],
+          ).createShader(rect),
+          blendMode: BlendMode.dstIn,
+          child: Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              // Placeholder invisible que le da altura al Stack
+              Opacity(
+                opacity: 0,
+                child: Text(widget.text, style: widget.style, maxLines: 1),
               ),
-            ),
-          ],
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _ctrl,
+                  builder: (_, _) {
+                    final shift = _ctrl.value * cycleW;
+                    return OverflowBox(
+                      alignment: Alignment.centerLeft,
+                      maxWidth: double.infinity,
+                      child: Transform.translate(
+                        offset: Offset(-shift, 0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(widget.text,
+                                style: widget.style,
+                                maxLines: 1,
+                                softWrap: false),
+                            SizedBox(width: gap),
+                            // Segunda copia: aparece por la derecha cuando la
+                            // primera sale por la izquierda (loop seamless)
+                            Text(widget.text,
+                                style: widget.style,
+                                maxLines: 1,
+                                softWrap: false),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       );
     });

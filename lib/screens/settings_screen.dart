@@ -207,7 +207,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   fit: BoxFit.cover,
                 ),
               ),
-              title: 'Shema',
+              title: s.appName,
               subtitle: s.appTagline,
               trailing: Container(
                 padding:
@@ -239,7 +239,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   fit: BoxFit.cover,
                 ),
               ),
-              title: 'Shema Player',
+              title: s.openInPlayer,
               subtitle: s.shemaPlayerTagline,
               trailing: Container(
                 padding:

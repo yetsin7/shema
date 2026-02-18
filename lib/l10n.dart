@@ -53,6 +53,7 @@ class S {
 
   // ===== DESCARGAS =====
   String get downloadTooltip => _isEs ? 'Descargar' : 'Download';
+  String get downloadButton => _isEs ? 'Bajar' : 'Download';
   String get searchYouTube => _isEs ? 'Buscar en YouTube' : 'Search YouTube';
   String get downloadSettingsTooltip =>
       _isEs ? 'Configurar descargas' : 'Download settings';
@@ -149,6 +150,10 @@ class S {
       _isEs ? 'No se pudo abrir el archivo.' : 'Could not open file.';
   String get cantOpenFolder =>
       _isEs ? 'No se pudo abrir la carpeta.' : 'Could not open folder.';
+  String get emptyMusicHint =>
+      _isEs ? 'Tu música aparecerá aquí' : 'Your music will appear here';
+  String get emptyVideoHint =>
+      _isEs ? 'Tus videos aparecerán aquí' : 'Your videos will appear here';
 
   // ===== CONFIGURACIÓN =====
   String get settingsTitle => _isEs ? 'Configuración' : 'Settings';
@@ -170,7 +175,12 @@ class S {
   String get getOnPlayStore => _isEs ? 'Obtener' : 'Get';
 
   // ===== SHEMA PLAYER =====
-  String get openInPlayer => _isEs ? 'Shema Player' : 'Shema Player';
+  String get openInPlayer => 'Shema Player';
+  String get shemaPlayerPromoText => _isEs
+      ? 'Obtén nuestro reproductor de\nmúsica y videos GRATIS'
+      : 'Get our music & video\nplayer for FREE';
+  String get shemaPlayerNotNow => _isEs ? 'Ahora no' : 'Not now';
+  String get shemaPlayerInstallFree => _isEs ? 'Instalar gratis' : 'Install free';
 
   // ===== SETUP INICIAL =====
   String get setupWelcome => _isEs ? 'Bienvenido a Shema' : 'Welcome to Shema';
