@@ -7,8 +7,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../services/directory_manager.dart';
 import '../services/download_service.dart';
 import 'home_screen.dart';
+import 'setup_screen.dart';
 import '../l10n.dart';
 
 /// Pantalla de inicio que muestra progreso mientras precarga recursos
@@ -81,11 +83,20 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 200));
     if (!mounted) return;
 
-    // Navegar a la pantalla principal
+    // Verificar si el setup inicial ya fue completado
+    final dirManager = DirectoryManager();
+    final setupDone = await dirManager.isSetupCompleted();
+
+    if (!mounted) return;
+
+    // Navegar al setup si es primera vez, o al home si ya se configuró
+    final destination = setupDone
+        ? HomeScreen(preloadedYouTubeController: _preloadedController)
+        : SetupScreen(preloadedYouTubeController: _preloadedController);
+
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) =>
-            HomeScreen(preloadedYouTubeController: _preloadedController),
+        pageBuilder: (_, __, ___) => destination,
         transitionDuration: const Duration(milliseconds: 500),
         transitionsBuilder: (_, animation, __, child) =>
             FadeTransition(opacity: animation, child: child),

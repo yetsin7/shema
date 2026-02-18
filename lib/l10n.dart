@@ -31,10 +31,10 @@ class S {
   String get cancel => _isEs ? 'Cancelar' : 'Cancel';
   String get accept => _isEs ? 'Aceptar' : 'Accept';
   String get delete => _isEs ? 'Eliminar' : 'Delete';
-  String get play => _isEs ? 'Escuchar' : 'Play';
+  String get play => _isEs ? 'Reproducir' : 'Play';
   String get retry => _isEs ? 'Reintentar' : 'Retry';
   String get error => 'Error';
-  String get completed => _isEs ? 'Listo' : 'Done';
+  String get completed => _isEs ? 'Abrir' : 'Open';
   String get queued => _isEs ? 'En cola' : 'Queued';
 
   // ===== SPLASH =====
@@ -45,10 +45,10 @@ class S {
       _isEs ? 'Cargando YouTube...' : 'Loading YouTube...';
   String get splashReady => _isEs ? 'Listo!' : 'Ready!';
 
-  // ===== NAVEGACIÃ“N =====
+  // ===== NAVEGACIÓN =====
   String get tabYouTube => 'YouTube';
   String get tabShorts => 'Shorts';
-  String get tabMusic => _isEs ? 'Mi mÃºsica' : 'My music';
+  String get tabMusic => _isEs ? 'Mi música' : 'My music';
   String get tabVideos => _isEs ? 'Mis videos' : 'My videos';
 
   // ===== DESCARGAS =====
@@ -56,7 +56,7 @@ class S {
   String get searchYouTube => _isEs ? 'Buscar en YouTube' : 'Search YouTube';
   String get downloadSettingsTooltip =>
       _isEs ? 'Configurar descargas' : 'Download settings';
-  String get backTooltip => _isEs ? 'Volver atrÃ¡s' : 'Go back';
+  String get backTooltip => _isEs ? 'Volver atrás' : 'Go back';
   String get downloadDialogTitle => _isEs ? 'Descargar' : 'Download';
   String get downloadUrlHint =>
       _isEs ? 'Pega el link del video aqui...' : 'Paste video link here...';
@@ -71,7 +71,7 @@ class S {
   String get gettingVideoInfo =>
       _isEs ? 'Obteniendo info del video...' : 'Getting video info...';
   String get waitingSiteLimit =>
-      _isEs ? 'Esperando (lÃ­mite del sitio)...' : 'Waiting (site limit)...';
+      _isEs ? 'Esperando (límite del sitio)...' : 'Waiting (site limit)...';
   String get convertingToMp3 =>
       _isEs ? 'Obteniendo audio...' : 'Getting audio...';
   String get addingMetadata =>
@@ -127,8 +127,8 @@ class S {
   String get changeVideoFolder =>
       _isEs ? 'Cambiar carpeta de videos' : 'Change video folder';
   String get downloadSettingsDescription => _isEs
-      ? 'La música y los videos se guardan en carpetas separadas para mantener el orden.'
-      : 'Music and videos are saved in separate folders to keep things organized.';
+      ? 'Todo se descarga en Download/Shema por defecto. Puedes cambiar las carpetas si lo deseas.'
+      : 'Everything downloads to Download/Shema by default. You can change the folders if you want.';
 
   // ===== BIBLIOTECA =====
   String get musicTitle => _isEs ? 'Música' : 'Music';
@@ -144,7 +144,7 @@ class S {
       ? 'No se encontraron videos en la carpeta configurada.'
       : 'No video files found in the configured folder.';
   String get fileNotAvailable =>
-      _isEs ? 'El archivo aÃºn no estÃ¡ disponible.' : 'File not available yet.';
+      _isEs ? 'El archivo aún no está disponible.' : 'File not available yet.';
   String get cantOpenFile =>
       _isEs ? 'No se pudo abrir el archivo.' : 'Could not open file.';
   String get cantOpenFolder =>
@@ -163,11 +163,34 @@ class S {
   String get languageEnglish => _isEs ? 'Inglés' : 'English';
   String get downloadFoldersSection => _isEs ? 'Carpetas de descarga' : 'Download folders';
 
+  // ===== SETUP INICIAL =====
+  String get setupWelcome => _isEs ? 'Bienvenido a Shema' : 'Welcome to Shema';
+  String get setupPermissionTitle => _isEs ? 'Permiso de almacenamiento' : 'Storage permission';
+  String get setupPermissionDesc => _isEs
+      ? 'Shema necesita acceso al almacenamiento para guardar tus descargas de música y videos.'
+      : 'Shema needs storage access to save your music and video downloads.';
+  String get setupGrantPermission => _isEs ? 'Dar permiso' : 'Grant permission';
+  String get setupPermissionGranted => _isEs ? 'Permiso concedido' : 'Permission granted';
+  String get setupPermissionDenied => _isEs
+      ? 'Sin este permiso no podrás descargar. Toca para intentar de nuevo.'
+      : 'Without this permission you cannot download. Tap to try again.';
+  String get setupFoldersTitle => _isEs ? 'Tus carpetas de descarga' : 'Your download folders';
+  String get setupFoldersCreated => _isEs
+      ? 'Se crearon las carpetas donde aparecerán tus descargas:'
+      : 'The folders where your downloads will appear have been created:';
+  String get setupVideoFolder => _isEs ? 'Videos' : 'Videos';
+  String get setupMusicFolder => _isEs ? 'Música' : 'Music';
+  String get setupChangeable => _isEs
+      ? 'Puedes cambiar estas ubicaciones en cualquier momento desde Configuración.'
+      : 'You can change these locations anytime from Settings.';
+  String get setupStart => _isEs ? 'Empezar' : 'Get started';
+  String get setupChangeFolder => _isEs ? 'Cambiar' : 'Change';
+
   // ===== ELIMINAR =====
   String get deleteFileTitle =>
       _isEs ? 'Eliminar archivo' : 'Delete file';
   String deleteFileConfirm(String name) => _isEs
-      ? 'Â¿Eliminar "$name"? Esta acciÃ³n no se puede deshacer.'
+      ? '¿Eliminar "$name"? Esta acción no se puede deshacer.'
       : 'Delete "$name"? This action cannot be undone.';
   String get fileDeleted =>
       _isEs ? 'Archivo eliminado.' : 'File deleted.';

@@ -7,6 +7,10 @@ import io.flutter.plugin.common.EventChannel
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.yausername.ffmpeg.FFmpeg
+import android.content.Intent
+import android.media.MediaScannerConnection
+import android.net.Uri
+import android.provider.DocumentsContract
 import kotlinx.coroutines.*
 import kotlinx.coroutines.time.*
 import java.io.File
@@ -78,6 +82,11 @@ class MainActivity : FlutterActivity() {
                     }
                     "updateYtDlp" -> {
                         updateYtDlp(result)
+                    }
+                    "openFolder" -> {
+                        val path = call.argument<String>("path") ?: ""
+                        openFolderInFileManager(path)
+                        result.success(true)
                     }
                     else -> result.notImplemented()
                 }
@@ -182,6 +191,17 @@ class MainActivity : FlutterActivity() {
                 Log.d(TAG, "Archivo encontrado: ${downloadedFile?.absolutePath ?: "NINGUNO"}")
                 Log.d(TAG, "Archivos en dir: ${outputDir.listFiles()?.map { it.name }}")
 
+                // Notificar al MediaStore para que el archivo sea visible en el explorador
+                if (downloadedFile != null) {
+                    MediaScannerConnection.scanFile(
+                        this@MainActivity,
+                        arrayOf(downloadedFile.absolutePath),
+                        null
+                    ) { path, uri ->
+                        Log.d(TAG, "MediaScanner completado: $path -> $uri")
+                    }
+                }
+
                 sendEvent(mapOf(
                     "downloadId" to downloadId,
                     "progress" to 100.0,
@@ -280,6 +300,36 @@ class MainActivity : FlutterActivity() {
     private fun sendEvent(data: Map<String, Any?>) {
         runOnUiThread {
             eventSink?.success(data)
+        }
+    }
+
+    /// Abre la carpeta específica en el explorador de archivos del sistema
+    /// Abre la carpeta específica en el explorador de archivos del sistema
+    private fun openFolderInFileManager(path: String) {
+        val relativePath = path.replace("/storage/emulated/0/", "")
+        val encodedPath = relativePath.replace("/", "%2F")
+        val treeUri = Uri.parse("content://com.android.externalstorage.documents/tree/primary%3A${encodedPath}/document/primary%3A${encodedPath}")
+
+        try {
+            // Intent que abre el explorador de archivos DENTRO de la carpeta específica
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(treeUri, DocumentsContract.Document.MIME_TYPE_DIR)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "openFolder: error con tree URI", e)
+            try {
+                // Fallback: abrir con BROWSE_DOCUMENT_ROOT
+                val browseUri = DocumentsContract.buildRootUri("com.android.externalstorage.documents", "primary")
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    data = browseUri
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(intent)
+            } catch (e2: Exception) {
+                Log.e(TAG, "openFolder fallback: error", e2)
+            }
         }
     }
 

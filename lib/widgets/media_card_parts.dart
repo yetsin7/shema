@@ -113,9 +113,18 @@ Widget buildStatusChip(
       borderRadius: BorderRadius.circular(999),
       border: Border.all(color: base.withValues(alpha: 0.32)),
     ),
-    child: Text(
-      label,
-      style: TextStyle(color: base, fontSize: 12, fontWeight: FontWeight.w700),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (completed) ...[
+          Icon(Icons.folder_open_rounded, size: 14, color: base),
+          const SizedBox(width: 4),
+        ],
+        Text(
+          label,
+          style: TextStyle(color: base, fontSize: 12, fontWeight: FontWeight.w700),
+        ),
+      ],
     ),
   );
 }

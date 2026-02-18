@@ -4,6 +4,8 @@ library;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/download_service.dart';
 import '../l10n.dart';
 import 'media_card_parts.dart';
@@ -113,44 +115,72 @@ class MediaCard extends StatelessWidget {
       dateStr = DateFormat('d MMM, HH:mm', s.locale.languageCode).format(date);
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
-        border: Border.all(color: downloading ? iconColor.withValues(alpha: 0.4) : tileTint.withValues(alpha: 0.85)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            buildMediaThumbnail(context: context, isAudio: isAudio, completed: completed && !failed, task: task),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    // Determinar si el card es tappeable (archivo completado disponible)
+    final tappable = completed && !failed && mediaFile != null;
+
+    return GestureDetector(
+      onTap: tappable ? () => const MethodChannel('com.cocibolka.shema/ytdlp')
+          .invokeMethod('openFolder', {'path': mediaFile!.parent.path}) : null,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
+          border: Border.all(color: downloading ? iconColor.withValues(alpha: 0.4) : tileTint.withValues(alpha: 0.85)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Columna izquierda: thumbnail + botón compartir debajo
+              Column(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(child: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
-                      const SizedBox(width: 6),
-                      buildStatusChip(context, label: statusText, failed: failed, completed: completed && !failed, queued: queued, iconColor: iconColor),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(spacing: 6, runSpacing: 4, children: [
-                    if (quality != null) buildMetaChip(context, icon: Icons.high_quality_rounded, label: quality, iconColor: iconColor),
-                    buildMetaChip(context, icon: isAudio ? Icons.music_note_rounded : Icons.videocam_rounded, label: isAudio ? 'MP3' : 'MP4', iconColor: iconColor),
-                    if (sizeMb != null) buildMetaChip(context, icon: Icons.data_usage_rounded, label: '$sizeMb MB', iconColor: iconColor),
-                    if (dateStr != null) buildMetaChip(context, icon: Icons.calendar_today_rounded, label: dateStr, iconColor: iconColor),
-                  ]),
-                  ..._buildActions(context, s, queued: queued, downloading: downloading, completed: completed, failed: failed, mediaFile: mediaFile, name: name),
+                  buildMediaThumbnail(context: context, isAudio: isAudio, completed: completed && !failed, task: task),
+                  if (tappable) ...[
+                    const SizedBox(height: 6),
+                    SizedBox(width: 40, height: 36, child: IconButton(
+                      onPressed: () => SharePlus.instance.share(ShareParams(files: [XFile(mediaFile.path)])),
+                      icon: const Icon(Icons.share_rounded, size: 16),
+                      style: IconButton.styleFrom(
+                        foregroundColor: iconColor,
+                        side: BorderSide(color: iconColor.withValues(alpha: 0.3)),
+                        padding: EdgeInsets.zero,
+                      ),
+                    )),
+                  ],
                 ],
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: tappable ? () => const MethodChannel('com.cocibolka.shema/ytdlp')
+                              .invokeMethod('openFolder', {'path': mediaFile!.parent.path}) : null,
+                          child: buildStatusChip(context, label: statusText, failed: failed, completed: completed && !failed, queued: queued, iconColor: iconColor),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(spacing: 6, runSpacing: 4, children: [
+                      if (quality != null) buildMetaChip(context, icon: Icons.high_quality_rounded, label: quality, iconColor: iconColor),
+                      buildMetaChip(context, icon: isAudio ? Icons.music_note_rounded : Icons.videocam_rounded, label: isAudio ? 'MP3' : 'MP4', iconColor: iconColor),
+                      if (sizeMb != null) buildMetaChip(context, icon: Icons.data_usage_rounded, label: '$sizeMb MB', iconColor: iconColor),
+                      if (dateStr != null) buildMetaChip(context, icon: Icons.calendar_today_rounded, label: dateStr, iconColor: iconColor),
+                    ]),
+                    ..._buildActions(context, s, queued: queued, downloading: downloading, completed: completed, failed: failed, mediaFile: mediaFile, name: name),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

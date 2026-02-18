@@ -6,6 +6,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n.dart';
+
 /// Barra de navegación inferior flotante con efecto glassmorphism.
 ///
 /// Usa [BackdropFilter] con blur para crear transparencia líquida.
@@ -41,7 +43,7 @@ class CustomBottomNav extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
-            height: 66,
+            height: 72,
             decoration: BoxDecoration(
               // Fondo translúcido para efecto glass
               color: isDark
@@ -63,50 +65,18 @@ class CustomBottomNav extends StatelessWidget {
                 ),
               ],
             ),
-            child: Row(
-              children: [
-                _NavItem(
-                  index: 0,
-                  currentIndex: currentIndex,
-                  icon: Icons.play_circle_outline_rounded,
-                  activeIcon: Icons.play_circle_rounded,
-                  color: const Color(0xFFE53935),
-                  onTap: onIndexChanged,
-                ),
-                _NavItem(
-                  index: 1,
-                  currentIndex: currentIndex,
-                  icon: Icons.slow_motion_video_outlined,
-                  activeIcon: Icons.slow_motion_video_rounded,
-                  color: const Color(0xFFFF6D00),
-                  onTap: onIndexChanged,
-                ),
-                _NavItem(
-                  index: 2,
-                  currentIndex: currentIndex,
-                  icon: Icons.music_note_outlined,
-                  activeIcon: Icons.music_note_rounded,
-                  color: const Color(0xFF1E88E5),
-                  onTap: onIndexChanged,
-                ),
-                _NavItem(
-                  index: 3,
-                  currentIndex: currentIndex,
-                  icon: Icons.video_library_outlined,
-                  activeIcon: Icons.video_library_rounded,
-                  color: const Color(0xFFFB8C00),
-                  onTap: onIndexChanged,
-                ),
-                _NavItem(
-                  index: 4,
-                  currentIndex: currentIndex,
-                  icon: Icons.settings_outlined,
-                  activeIcon: Icons.settings_rounded,
-                  color: const Color(0xFF78909C),
-                  onTap: onIndexChanged,
-                ),
-              ],
-            ),
+            child: Builder(builder: (context) {
+              final s = S.of(context);
+              return Row(
+                children: [
+                  _NavItem(index: 0, currentIndex: currentIndex, icon: Icons.play_circle_outline_rounded, activeIcon: Icons.play_circle_rounded, color: const Color(0xFFE53935), label: s.tabYouTube, onTap: onIndexChanged),
+                  _NavItem(index: 1, currentIndex: currentIndex, icon: Icons.slow_motion_video_outlined, activeIcon: Icons.slow_motion_video_rounded, color: const Color(0xFFFF6D00), label: s.tabShorts, onTap: onIndexChanged),
+                  _NavItem(index: 2, currentIndex: currentIndex, icon: Icons.music_note_outlined, activeIcon: Icons.music_note_rounded, color: const Color(0xFF1E88E5), label: s.tabMusic, onTap: onIndexChanged),
+                  _NavItem(index: 3, currentIndex: currentIndex, icon: Icons.video_library_outlined, activeIcon: Icons.video_library_rounded, color: const Color(0xFFFB8C00), label: s.tabVideos, onTap: onIndexChanged),
+                  _NavItem(index: 4, currentIndex: currentIndex, icon: Icons.settings_outlined, activeIcon: Icons.settings_rounded, color: const Color(0xFF78909C), label: s.settingsTitle, onTap: onIndexChanged),
+                ],
+              );
+            }),
           ),
         ),
       ),
@@ -122,6 +92,7 @@ class _NavItem extends StatelessWidget {
     required this.icon,
     required this.activeIcon,
     required this.color,
+    required this.label,
     required this.onTap,
   });
 
@@ -130,6 +101,7 @@ class _NavItem extends StatelessWidget {
   final IconData icon;
   final IconData activeIcon;
   final Color color;
+  final String label;
   final ValueChanged<int> onTap;
 
   @override
@@ -148,28 +120,30 @@ class _NavItem extends StatelessWidget {
           HapticFeedback.selectionClick();
           onTap(index);
         },
-        child: Center(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeOutCubic,
-            width: isSelected ? 48 : 40,
-            height: isSelected ? 48 : 40,
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? const Color(0xFF78909C).withValues(alpha: isDark ? 0.25 : 0.14)
-                  : Colors.transparent,
-              shape: BoxShape.circle,
-            ),
-            child: AnimatedSwitcher(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
               child: Icon(
                 isSelected ? activeIcon : icon,
                 key: ValueKey(isSelected),
-                size: isSelected ? 30 : 27,
+                size: isSelected ? 26 : 23,
                 color: isSelected ? color : inactiveColor,
               ),
             ),
-          ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? color : inactiveColor,
+              ),
+            ),
+          ],
         ),
       ),
     );
