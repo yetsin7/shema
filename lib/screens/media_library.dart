@@ -362,7 +362,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                                   .toColor(),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(18),
                           boxShadow: [
                             BoxShadow(
                               color: widget.iconColor.withValues(alpha: 0.32),
@@ -409,7 +409,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                           height: 44,
                           decoration: BoxDecoration(
                             color: widget.iconColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(14),
+                            shape: BoxShape.circle,
                           ),
                           child: Icon(Icons.folder_open_rounded,
                               color: widget.iconColor, size: 22),

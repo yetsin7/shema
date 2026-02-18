@@ -343,7 +343,7 @@ class _PopupRow extends StatelessWidget {
                     height: 32,
                     decoration: BoxDecoration(
                       color: iconColor.withValues(alpha: 0.13),
-                      borderRadius: BorderRadius.circular(8),
+                      shape: BoxShape.circle,
                     ),
                     child: Icon(icon, color: iconColor, size: 18),
                   ),
@@ -598,7 +598,7 @@ class _FolderRow extends StatelessWidget {
                 height: 32,
                 decoration: BoxDecoration(
                   color: iconColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
+                  shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: iconColor, size: 18),
               ),
@@ -632,7 +632,7 @@ class _FolderRow extends StatelessWidget {
                   height: 32,
                   decoration: BoxDecoration(
                     color: iconColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(9),
+                    shape: BoxShape.circle,
                   ),
                   child: Icon(Icons.edit_rounded,
                       color: iconColor, size: 16),

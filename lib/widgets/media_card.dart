@@ -291,7 +291,7 @@ class MediaCard extends StatelessWidget {
               height: 40,
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(ShemaRadius.button),
+                shape: BoxShape.circle,
               ),
               child: Icon(Icons.share_rounded,
                   size: 18,
@@ -310,7 +310,7 @@ class MediaCard extends StatelessWidget {
               height: 40,
               decoration: BoxDecoration(
                 color: ShemaColors.seed.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(ShemaRadius.button),
+                shape: BoxShape.circle,
               ),
               child: const Icon(Icons.play_circle_outline_rounded,
                   color: ShemaColors.seed, size: 20),
@@ -325,7 +325,7 @@ class MediaCard extends StatelessWidget {
               height: 40,
               decoration: BoxDecoration(
                 color: const Color(0xFFEF4444).withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(ShemaRadius.button),
+                shape: BoxShape.circle,
               ),
               child: const Icon(Icons.delete_outline_rounded,
                   color: Color(0xFFEF4444), size: 20),

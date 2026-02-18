@@ -56,7 +56,7 @@ class FolderCard extends StatelessWidget {
               height: 44,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(13),
+                shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 22),
             ),
@@ -95,7 +95,7 @@ class FolderCard extends StatelessWidget {
                 height: 38,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(11),
+                  shape: BoxShape.circle,
                 ),
                 child: Icon(Icons.folder_open_rounded, color: color, size: 20),
               ),

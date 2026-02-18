@@ -83,7 +83,7 @@ class _DownloadDialogState extends State<DownloadDialog> {
                   height: 42,
                   decoration: BoxDecoration(
                     color: ShemaColors.seed.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
+                    shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.download_rounded,
                       color: ShemaColors.seed, size: 22),
@@ -104,7 +104,7 @@ class _DownloadDialogState extends State<DownloadDialog> {
                     height: 32,
                     decoration: BoxDecoration(
                       color: colorScheme.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(10),
+                      shape: BoxShape.circle,
                     ),
                     child: Icon(Icons.close, size: 18,
                         color: colorScheme.onSurfaceVariant),
@@ -255,7 +255,7 @@ class _DownloadButton extends StatelessWidget {
                 height: 36,
                 decoration: BoxDecoration(
                   color: accentColor.withValues(alpha: isDark ? 0.25 : 0.15),
-                  borderRadius: BorderRadius.circular(10),
+                  shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: accentColor, size: 20),
               ),

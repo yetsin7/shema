@@ -83,7 +83,7 @@ class _DownloadTaskItem extends StatelessWidget {
             height: 32,
             decoration: BoxDecoration(
               color: accentColor.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(9),
+              shape: BoxShape.circle,
             ),
             child: Icon(
               isAudio ? Icons.graphic_eq_rounded : Icons.movie_creation_outlined,
@@ -140,7 +140,7 @@ class _DownloadTaskItem extends StatelessWidget {
               height: 28,
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                shape: BoxShape.circle,
               ),
               child: Icon(Icons.close_rounded,
                   color: Colors.white.withValues(alpha: 0.7), size: 16),

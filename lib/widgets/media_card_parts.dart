@@ -87,7 +87,7 @@ Widget buildCardHeader({
                     height: 26,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.92),
-                      borderRadius: BorderRadius.circular(7),
+                      shape: BoxShape.circle,
                     ),
                     child: Icon(
                       isAudio
