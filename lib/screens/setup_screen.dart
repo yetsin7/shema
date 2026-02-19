@@ -156,37 +156,82 @@ class _SetupScreenState extends State<SetupScreen> {
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
+    final bothChosen = _videoChosen && _musicChosen;
     return Scaffold(
       backgroundColor: const Color(0xFF1B5E20),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
-              // Logo y título
-              ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Image.asset('assets/icon_shema.png', width: 80, height: 80),
-              ),
-              const SizedBox(height: 16),
-              Text(s.setupWelcome,
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(s.splashSubtitle,
-                  style: const TextStyle(color: Colors.white70, fontSize: 14)),
-              const SizedBox(height: 40),
-
-              // Contenido según el paso actual
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  child: _step == 0 ? _buildPermissionStep(s) : _buildFoldersStep(s),
+        child: Column(
+          children: [
+            // Barra superior con botón de flecha para avanzar
+            if (_step == 1)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8, right: 16),
+                  child: _migrating
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          ),
+                        )
+                      : IconButton(
+                          onPressed: bothChosen ? _finishSetup : null,
+                          icon: Icon(
+                            Icons.arrow_forward_rounded,
+                            color: bothChosen ? Colors.white : Colors.white38,
+                            size: 28,
+                          ),
+                          style: IconButton.styleFrom(
+                            backgroundColor: bothChosen
+                                ? Colors.white.withValues(alpha: 0.2)
+                                : Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
                 ),
               ),
-            ],
-          ),
+
+            // Contenido scrollable
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    if (_step != 1) const SizedBox(height: 40),
+                    const SizedBox(height: 16),
+                    // Logo y título
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Image.asset('assets/icon_shema.png', width: 80, height: 80),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(s.setupWelcome,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text(s.splashSubtitle,
+                        style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                    const SizedBox(height: 40),
+
+                    // Contenido según el paso actual
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: _step == 0 ? _buildPermissionStep(s) : _buildFoldersStep(s),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -260,93 +305,52 @@ class _SetupScreenState extends State<SetupScreen> {
 
   /// Paso 2: El usuario elige manualmente ambas carpetas antes de continuar
   Widget _buildFoldersStep(S s) {
-    final bothChosen = _videoChosen && _musicChosen;
-    return Column(
+    return Container(
       key: const ValueKey('folders'),
-      children: [
-        // Contenido scrollable para pantallas pequeñas
-        Expanded(
-          child: SingleChildScrollView(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                children: [
-                  Text(s.setupChooseFolders,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center),
-                  const SizedBox(height: 8),
-                  Text(s.setupChooseFoldersDesc,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                      textAlign: TextAlign.center),
-                  const SizedBox(height: 24),
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(s.setupChooseFolders,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          Text(s.setupChooseFoldersDesc,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 24),
 
-                  // Tarjeta de carpeta de videos
-                  _buildPickFolderCard(
-                    icon: Icons.videocam_rounded,
-                    color: const Color(0xFFEF6C00),
-                    bgColor: const Color(0xFFFFF3E0),
-                    label: s.setupVideoFolder,
-                    chosen: _videoChosen,
-                    path: _videoPath,
-                    onTap: () => _pickFolder(isMusic: false),
-                    s: s,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Tarjeta de carpeta de música
-                  _buildPickFolderCard(
-                    icon: Icons.music_note_rounded,
-                    color: const Color(0xFF1565C0),
-                    bgColor: const Color(0xFFE3F2FD),
-                    label: s.setupMusicFolder,
-                    chosen: _musicChosen,
-                    path: _musicPath,
-                    onTap: () => _pickFolder(isMusic: true),
-                    s: s,
-                  ),
-                ],
-              ),
-            ),
+          // Tarjeta de carpeta de videos
+          _buildPickFolderCard(
+            icon: Icons.videocam_rounded,
+            color: const Color(0xFFEF6C00),
+            bgColor: const Color(0xFFFFF3E0),
+            label: s.setupVideoFolder,
+            chosen: _videoChosen,
+            path: _videoPath,
+            onTap: () => _pickFolder(isMusic: false),
+            s: s,
           ),
-        ),
+          const SizedBox(height: 16),
 
-        // Botón empezar: desactivado hasta que ambas carpetas estén elegidas;
-        // muestra spinner mientras se migran los archivos al terminar
-        Padding(
-          padding: const EdgeInsets.only(bottom: 32, top: 16),
-          child: SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: FilledButton(
-              onPressed: (bothChosen && !_migrating) ? _finishSetup : null,
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF1B5E20),
-                disabledBackgroundColor: Colors.white24,
-                disabledForegroundColor: Colors.white38,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                textStyle:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              child: _migrating
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: Color(0xFF1B5E20),
-                      ),
-                    )
-                  : Text(bothChosen ? s.setupStart : s.setupChooseBothFirst),
-            ),
+          // Tarjeta de carpeta de música
+          _buildPickFolderCard(
+            icon: Icons.music_note_rounded,
+            color: const Color(0xFF1565C0),
+            bgColor: const Color(0xFFE3F2FD),
+            label: s.setupMusicFolder,
+            chosen: _musicChosen,
+            path: _musicPath,
+            onTap: () => _pickFolder(isMusic: true),
+            s: s,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
