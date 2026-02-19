@@ -166,7 +166,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _GroupDivider(isDark: isDark),
             _FolderRow(
               icon: Icons.videocam_rounded,
-              iconColor: ShemaColors.videoAmber,
+              iconColor: ShemaColors.videoCoral,
               label: s.videoFolder,
               path: widget.videoDirectory,
               isDark: isDark,

@@ -16,6 +16,8 @@ Widget buildCardHeader({
   required String title,
   required Widget statusBadge,
   DownloadTask? task,
+  Widget? trailing,
+  bool expanded = true,
 }) {
   final thumbUrl = task?.thumbnailUrl ?? '';
   final hasThumbnail = !isAudio && thumbUrl.isNotEmpty;
@@ -38,13 +40,21 @@ Widget buildCardHeader({
     shadows: [Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 1))],
   );
 
-  return ClipRRect(
-    borderRadius: const BorderRadius.only(
-      topLeft: Radius.circular(ShemaRadius.card),
-      topRight: Radius.circular(ShemaRadius.card),
-    ),
+  // Comprimido: bordes completamente redondeados; expandido: solo arriba
+  final radius = expanded
+      ? const BorderRadius.only(
+          topLeft: Radius.circular(22),
+          topRight: Radius.circular(22),
+        )
+      : BorderRadius.circular(28);
+
+  return AnimatedContainer(
+    duration: const Duration(milliseconds: 250),
+    curve: Curves.easeInOut,
+    child: ClipRRect(
+    borderRadius: radius,
     child: SizedBox(
-      height: 60,
+      height: 52,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -77,14 +87,14 @@ Widget buildCardHeader({
           // Fila: icono | título marquee | badge
           Positioned.fill(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   // Icono del tipo de medio — fondo blanco sólido con ícono de color
                   Container(
-                    width: 26,
-                    height: 26,
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.92),
                       shape: BoxShape.circle,
@@ -94,7 +104,7 @@ Widget buildCardHeader({
                           ? Icons.graphic_eq_rounded
                           : Icons.movie_creation_outlined,
                       color: accentColor,
-                      size: 15,
+                      size: 18,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -102,6 +112,10 @@ Widget buildCardHeader({
                   Expanded(child: _MarqueeText(text: title, style: titleStyle)),
                   const SizedBox(width: 6),
                   statusBadge,
+                  if (trailing != null) ...[
+                    const SizedBox(width: 6),
+                    trailing,
+                  ],
                 ],
               ),
             ),
@@ -109,6 +123,7 @@ Widget buildCardHeader({
         ],
       ),
     ),
+  ),
   );
 }
 
@@ -352,8 +367,8 @@ Widget buildStatusChip(
               ? const Color(0xFF8E8E93)
               : iconColor;
 
-  final hPad = compact ? 7.0 : 9.0;
-  final vPad = compact ? 3.0 : 4.0;
+  final hPad = compact ? 8.0 : 9.0;
+  final vPad = compact ? 4.0 : 4.0;
 
   final bgAlpha = compact ? 0.85 : 0.14;
   final fgColor = compact ? Colors.white : base;
@@ -363,7 +378,7 @@ Widget buildStatusChip(
     padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
     decoration: BoxDecoration(
       color: bgColor,
-      borderRadius: BorderRadius.circular(compact ? 6 : 8),
+      borderRadius: BorderRadius.circular(50),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,

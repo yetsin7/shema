@@ -24,6 +24,7 @@ class MediaLibraryScreen extends StatefulWidget {
     required this.kind,
     required this.downloadCenter,
     required this.downloadDirectory,
+    this.isActive = true,
     super.key,
   });
   final String title, emptyTitle, emptyDescription;
@@ -33,6 +34,9 @@ class MediaLibraryScreen extends StatefulWidget {
   final MediaKind kind;
   final DownloadCenter downloadCenter;
   final String? downloadDirectory;
+
+  /// Si esta pestaña está actualmente visible
+  final bool isActive;
   @override
   State<MediaLibraryScreen> createState() => _MediaLibraryScreenState();
 }
@@ -42,6 +46,9 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
   /// Archivos cargados desde disco (se actualiza sin mostrar spinner)
   List<FileSystemEntity> _files = [];
   int _completedTasksCount = 0;
+
+  /// Identificador del card actualmente expandido (null = ninguno)
+  String? _expandedCardId;
 
   @override
   void initState() {
@@ -56,6 +63,10 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
   void didUpdateWidget(covariant MediaLibraryScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.downloadDirectory != widget.downloadDirectory) _refresh();
+    // Contraer cards al salir de la pestaña
+    if (!widget.isActive && oldWidget.isActive && _expandedCardId != null) {
+      _expandedCardId = null;
+    }
   }
 
   @override
@@ -418,12 +429,26 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
                     ],
                   ),
                 ),
-                ...tasks.map((task) => MediaCard(task: task, file: _taskFile(task), kind: widget.kind,
-                  iconColor: widget.iconColor, tileTint: widget.tileTint, onPlay: _openMedia, onRetry: _retryFailedTask,
-                  onDelete: _confirmDelete, onCancel: (task) => widget.downloadCenter.removeTask(task.id),
-                  onCancelDownload: (task) => widget.downloadCenter.cancel(task.id))),
-                ...uniqueFiles.map((entity) => MediaCard(file: File(entity.path), kind: widget.kind,
-                  iconColor: widget.iconColor, tileTint: widget.tileTint, onPlay: _openMedia, onDelete: _confirmDelete)),
+                ...tasks.map((task) {
+                  final cardId = 'task_${task.id}';
+                  return MediaCard(task: task, file: _taskFile(task), kind: widget.kind,
+                    iconColor: widget.iconColor, tileTint: widget.tileTint, onPlay: _openMedia, onRetry: _retryFailedTask,
+                    onDelete: _confirmDelete, onCancel: (task) => widget.downloadCenter.removeTask(task.id),
+                    onCancelDownload: (task) => widget.downloadCenter.cancel(task.id),
+                    expanded: _expandedCardId == cardId,
+                    onToggleExpand: () => setState(() =>
+                      _expandedCardId = _expandedCardId == cardId ? null : cardId),
+                  );
+                }),
+                ...uniqueFiles.map((entity) {
+                  final cardId = 'file_${entity.path}';
+                  return MediaCard(file: File(entity.path), kind: widget.kind,
+                    iconColor: widget.iconColor, tileTint: widget.tileTint, onPlay: _openMedia, onDelete: _confirmDelete,
+                    expanded: _expandedCardId == cardId,
+                    onToggleExpand: () => setState(() =>
+                      _expandedCardId = _expandedCardId == cardId ? null : cardId),
+                  );
+                }),
               ],
             ));
         }

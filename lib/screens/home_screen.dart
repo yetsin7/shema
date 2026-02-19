@@ -146,6 +146,65 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Cambia a la pestaña de configuración
   void _openSettings() => setState(() => _currentIndex = 4);
 
+  /// Construye el título del AppBar según la pestaña activa
+  Widget _buildAppBarTitle(BuildContext context) {
+    final s = S.of(context);
+    // YouTube y Shorts muestran logo + nombre de la app
+    if (_currentIndex == 0 || _currentIndex == 1) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(11),
+            child: Image.asset('assets/icon_shema.png',
+                width: 36, height: 36, fit: BoxFit.cover),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                s.appName,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                  height: 1.1,
+                ),
+              ),
+              Text(
+                s.appTagline,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.1,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  height: 1.0,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+    // Las demás pestañas muestran el nombre de la pantalla
+    final title = switch (_currentIndex) {
+      2 => s.tabMusic,
+      3 => s.tabVideos,
+      4 => s.settingsTitle,
+      _ => s.appName,
+    };
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.5,
+      ),
+    );
+  }
+
   /// Cambia la pestaña activa; pausa WebViews al salir de YouTube/Shorts
   void _onTabChanged(int index) {
     if (index == 0 && _currentIndex == 0) {
@@ -209,43 +268,8 @@ class _HomeScreenState extends State<HomeScreen> {
           automaticallyImplyLeading: false,
           titleSpacing: 16,
           backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-          // Logo + título + subtítulo premium
-          title: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(11),
-                child: Image.asset('assets/icon_shema.png',
-                    width: 36, height: 36, fit: BoxFit.cover),
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    S.of(context).appName,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                      height: 1.1,
-                    ),
-                  ),
-                  Text(
-                    S.of(context).appTagline,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.1,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      height: 1.0,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+          // Título dinámico según la pestaña activa
+          title: _buildAppBarTitle(context),
           actions: [
             // Botón Bajar: solo visible cuando hay un video de YouTube activo
             if (_showDownloadButton)
@@ -319,8 +343,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           onFullScreenChanged: (fs) => setState(() => _isFullScreen = fs),
                           onUrlChanged: (url) => setState(() => _shortsUrl = url),
                         ),
-                        MusicScreen(downloadCenter: _downloadCenter, downloadDirectory: _dirManager.musicDirectory),
-                        VideosScreen(downloadCenter: _downloadCenter, downloadDirectory: _dirManager.videoDirectory),
+                        MusicScreen(downloadCenter: _downloadCenter, downloadDirectory: _dirManager.musicDirectory, isActive: _currentIndex == 2),
+                        VideosScreen(downloadCenter: _downloadCenter, downloadDirectory: _dirManager.videoDirectory, isActive: _currentIndex == 3),
                         SettingsScreen(
                           musicDirectory: _dirManager.musicDirectory,
                           videoDirectory: _dirManager.videoDirectory,

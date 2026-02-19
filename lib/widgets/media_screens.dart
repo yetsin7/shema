@@ -13,11 +13,13 @@ class MusicScreen extends StatelessWidget {
   const MusicScreen({
     required this.downloadCenter,
     required this.downloadDirectory,
+    this.isActive = true,
     super.key,
   });
 
   final DownloadCenter downloadCenter;
   final String? downloadDirectory;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +35,7 @@ class MusicScreen extends StatelessWidget {
       kind: MediaKind.audio,
       downloadCenter: downloadCenter,
       downloadDirectory: downloadDirectory,
+      isActive: isActive,
     );
   }
 }
@@ -42,11 +45,13 @@ class VideosScreen extends StatelessWidget {
   const VideosScreen({
     required this.downloadCenter,
     required this.downloadDirectory,
+    this.isActive = true,
     super.key,
   });
 
   final DownloadCenter downloadCenter;
   final String? downloadDirectory;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context) {
@@ -57,11 +62,12 @@ class VideosScreen extends StatelessWidget {
       emptyDescription: s.noVideosDescription,
       extensions: const <String>{'.mp4', '.webm', '.mkv'},
       icon: Icons.movie_creation_outlined,
-      iconColor: const Color(0xFFEF6C00),
-      tileTint: const Color(0xFFFFF3E0),
+      iconColor: const Color(0xFFE11D48),
+      tileTint: const Color(0xFFFCE4EC),
       kind: MediaKind.video,
       downloadCenter: downloadCenter,
       downloadDirectory: downloadDirectory,
+      isActive: isActive,
     );
   }
 }

@@ -97,7 +97,7 @@ class CustomBottomNav extends StatelessWidget {
                     currentIndex: currentIndex,
                     icon: Icons.video_library_outlined,
                     activeIcon: Icons.video_library_rounded,
-                    color: ShemaColors.videoAmber,
+                    color: ShemaColors.videoCoral,
                     label: s.tabVideos,
                     onTap: onIndexChanged,
                   ),

@@ -21,7 +21,7 @@ class ShemaColors {
   static const musicBlue = Color(0xFF3B82F6);
 
   /// Ámbar para la pestaña de videos
-  static const videoAmber = Color(0xFFF59E0B);
+  static const videoCoral = Color(0xFFE11D48);
 
   // ── Light mode ─────────────────────────────────────
   /// Fondo general claro (iOS-like off-white)
