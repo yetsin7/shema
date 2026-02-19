@@ -66,17 +66,23 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
       setState(() => _progress = i / steps);
 
-      // Al 50%, esperar a que yt-dlp termine de actualizarse
+      // Al 50%, esperar a que yt-dlp termine (máximo 2s)
       if (i == 50 && !_isYtDlpReady) {
-        while (!_isYtDlpReady && mounted) {
+        int waited = 0;
+        while (!_isYtDlpReady && mounted && waited < 20) {
           await Future.delayed(const Duration(milliseconds: 100));
+          waited++;
         }
+        _isYtDlpReady = true;
       }
-      // Al 95%, esperar a que YouTube termine de cargar
+      // Al 95%, esperar a que YouTube termine (máximo 2s)
       if (i == 95 && !_isYouTubeLoaded) {
-        while (!_isYouTubeLoaded && mounted) {
+        int waited = 0;
+        while (!_isYouTubeLoaded && mounted && waited < 20) {
           await Future.delayed(const Duration(milliseconds: 100));
+          waited++;
         }
+        _isYouTubeLoaded = true;
       }
     }
 

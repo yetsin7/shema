@@ -93,8 +93,8 @@ Widget buildCardHeader({
                 children: [
                   // Icono del tipo de medio — fondo blanco sólido con ícono de color
                   Container(
-                    width: 32,
-                    height: 32,
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.92),
                       shape: BoxShape.circle,
@@ -104,7 +104,7 @@ Widget buildCardHeader({
                           ? Icons.graphic_eq_rounded
                           : Icons.movie_creation_outlined,
                       color: accentColor,
-                      size: 18,
+                      size: 22,
                     ),
                   ),
                   const SizedBox(width: 8),

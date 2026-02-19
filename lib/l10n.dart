@@ -150,6 +150,10 @@ class S {
       _isEs ? 'No se pudo abrir el archivo.' : 'Could not open file.';
   String get cantOpenFolder =>
       _isEs ? 'No se pudo abrir la carpeta.' : 'Could not open folder.';
+  String get noInternetTitle =>
+      _isEs ? 'Sin conexión a Internet' : 'No Internet connection';
+  String get noInternetDescription =>
+      _isEs ? 'Conéctate a una red Wi-Fi o activa los datos móviles para navegar en YouTube.' : 'Connect to Wi-Fi or enable mobile data to browse YouTube.';
   String get emptyMusicHint =>
       _isEs ? 'Tu música aparecerá aquí' : 'Your music will appear here';
   String get emptyVideoHint =>

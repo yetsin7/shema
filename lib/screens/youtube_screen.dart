@@ -8,8 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
+import '../l10n.dart';
 import '../utils/youtube_js.dart';
-import '../widgets/webview_error_banner.dart';
 
 /// Widget que muestra YouTube en un WebView con personalización CSS.
 ///
@@ -56,8 +56,8 @@ class YouTubeScreenState extends State<YouTubeScreen> {
   /// Progreso de carga de la página (0-100)
   int _progress = 0;
 
-  /// Mensaje de error mostrado al usuario (null si no hay error)
-  String? _errorMessage;
+  /// Indica si hay un error de conexión (muestra pantalla offline)
+  bool _isOffline = false;
 
   /// Indica si el video está en modo pantalla completa
   bool _isFullScreen = false;
@@ -119,11 +119,11 @@ class YouTubeScreenState extends State<YouTubeScreen> {
   NavigationDelegate _navigationDelegate() => NavigationDelegate(
     onProgress: (p) {
       if (!mounted) return;
-      setState(() { _progress = p; _errorMessage = null; });
+      setState(() { _progress = p; if (p > 10) _isOffline = false; });
     },
     onPageStarted: (url) {
       if (!mounted) return;
-      setState(() => _errorMessage = null);
+      setState(() => _isOffline = false);
       if (url.isNotEmpty) widget.onUrlChanged?.call(url);
     },
     onPageFinished: (url) {
@@ -138,7 +138,14 @@ class YouTubeScreenState extends State<YouTubeScreen> {
       if (error.isForMainFrame == false) return;
       final desc = error.description.toLowerCase();
       if (desc.contains('orb') || desc.contains('cors')) return;
-      setState(() => _errorMessage = 'Error: ${error.description}');
+      // Detectar errores de red (sin internet)
+      if (desc.contains('err_name_not_resolved') ||
+          desc.contains('err_internet_disconnected') ||
+          desc.contains('err_address_unreachable') ||
+          desc.contains('err_network') ||
+          desc.contains('err_connection')) {
+        setState(() => _isOffline = true);
+      }
     },
     onNavigationRequest: (request) {
       Future.delayed(const Duration(milliseconds: 800), _injectCustomizations);
@@ -194,10 +201,19 @@ class YouTubeScreenState extends State<YouTubeScreen> {
     try { controller!.runJavaScript(js); } catch (_) {}
   }
 
-  @override
-  void initState() {
-    super.initState();
-    if (!(Platform.isAndroid || Platform.isIOS)) return;
+  /// Verifica si hay conexión a internet haciendo un lookup DNS
+  Future<bool> _hasInternet() async {
+    try {
+      final result = await InternetAddress.lookup('youtube.com')
+          .timeout(const Duration(seconds: 3));
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Inicializa el WebView y configura la plataforma
+  void _setupController() {
     controller = widget.preloadedController ?? WebViewController();
     controller!
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -247,6 +263,10 @@ class YouTubeScreenState extends State<YouTubeScreen> {
         },
       );
     }
+  }
+
+  /// Carga la URL inicial o usa el controlador precargado
+  void _loadInitialUrl() {
     if (widget.preloadedController == null) {
       final mobileUrl = widget.initialUrl.replaceAll('www.youtube.com', 'm.youtube.com');
       controller!.loadRequest(Uri.parse(mobileUrl));
@@ -257,6 +277,24 @@ class YouTubeScreenState extends State<YouTubeScreen> {
         _injectCustomizations();
       }());
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (!(Platform.isAndroid || Platform.isIOS)) return;
+
+    // Verificar conexión antes de cargar el WebView
+    unawaited(_hasInternet().then((connected) {
+      if (!mounted) return;
+      if (connected) {
+        _setupController();
+        _loadInitialUrl();
+        setState(() {});
+      } else {
+        setState(() => _isOffline = true);
+      }
+    }));
   }
 
   @override
@@ -279,19 +317,123 @@ class YouTubeScreenState extends State<YouTubeScreen> {
       );
     }
 
+    // Pantalla offline cuando no hay conexión
+    if (_isOffline) {
+      return _buildOfflineScreen(context);
+    }
+
+    // Mientras se verifica la conexión, mostrar indicador de carga
+    if (controller == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return Stack(
       children: [
         WebViewWidget(controller: controller!),
         if (_progress < 100) LinearProgressIndicator(value: _progress / 100),
-        if (_errorMessage != null)
-          WebViewErrorBanner(
-            message: _errorMessage!,
-            onReload: () {
-              setState(() => _errorMessage = null);
-              controller?.reload();
-            },
-          ),
       ],
+    );
+  }
+
+  /// Construye una pantalla offline con icono, mensaje y botón de reintentar
+  Widget _buildOfflineScreen(BuildContext context) {
+    final s = S.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF252528) : Colors.white;
+    final iconBg = isDark ? const Color(0xFF333336) : const Color(0xFFF3F4F6);
+    final titleColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF1C1C1E);
+    final descColor = isDark ? const Color(0xFF8D8D93) : const Color(0xFF6C6C70);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              if (!isDark)
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.wifi_off_rounded,
+                  size: 32,
+                  color: descColor,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                s.noInternetTitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: titleColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                s.noInternetDescription,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: descColor,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final connected = await _hasInternet();
+                    if (!mounted) return;
+                    if (connected) {
+                      if (controller == null) {
+                        _setupController();
+                        _loadInitialUrl();
+                      } else {
+                        controller!.reload();
+                      }
+                      setState(() => _isOffline = false);
+                    }
+                  },
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: Text(s.retry),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF22C55E),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
