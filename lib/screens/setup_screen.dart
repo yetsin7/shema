@@ -194,69 +194,67 @@ class _SetupScreenState extends State<SetupScreen> {
 
   /// Paso 1: Solicitar permisos de almacenamiento
   Widget _buildPermissionStep(S s) {
-    return Column(
+    return SingleChildScrollView(
       key: const ValueKey('permission'),
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(Icons.folder_rounded, size: 48, color: Color(0xFF2E7D32)),
-              ),
-              const SizedBox(height: 20),
-              Text(s.setupPermissionTitle,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              Text(s.setupPermissionDesc,
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 24),
-              if (!_permissionGranted)
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: FilledButton.icon(
-                    onPressed: _requestPermission,
-                    icon: const Icon(Icons.security_rounded),
-                    label: Text(s.setupGrantPermission,
-                        style: const TextStyle(fontSize: 16)),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF2E7D32),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                    ),
-                  ),
-                )
-              else
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.check_circle_rounded,
-                        color: Color(0xFF2E7D32), size: 24),
-                    const SizedBox(width: 8),
-                    Text(s.setupPermissionGranted,
-                        style: const TextStyle(
-                            color: Color(0xFF2E7D32),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16)),
-                  ],
-                ),
-            ],
-          ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
         ),
-      ],
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.folder_rounded, size: 48, color: Color(0xFF2E7D32)),
+            ),
+            const SizedBox(height: 20),
+            Text(s.setupPermissionTitle,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            Text(s.setupPermissionDesc,
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            if (!_permissionGranted)
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: FilledButton.icon(
+                  onPressed: _requestPermission,
+                  icon: const Icon(Icons.security_rounded),
+                  label: Text(s.setupGrantPermission,
+                      style: const TextStyle(fontSize: 16)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              )
+            else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.check_circle_rounded,
+                      color: Color(0xFF2E7D32), size: 24),
+                  const SizedBox(width: 8),
+                  Text(s.setupPermissionGranted,
+                      style: const TextStyle(
+                          color: Color(0xFF2E7D32),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16)),
+                ],
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -266,57 +264,61 @@ class _SetupScreenState extends State<SetupScreen> {
     return Column(
       key: const ValueKey('folders'),
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            children: [
-              Text(s.setupChooseFolders,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 8),
-              Text(s.setupChooseFoldersDesc,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 24),
-
-              // Tarjeta de carpeta de videos
-              _buildPickFolderCard(
-                icon: Icons.videocam_rounded,
-                color: const Color(0xFFEF6C00),
-                bgColor: const Color(0xFFFFF3E0),
-                label: s.setupVideoFolder,
-                chosen: _videoChosen,
-                path: _videoPath,
-                onTap: () => _pickFolder(isMusic: false),
-                s: s,
+        // Contenido scrollable para pantallas pequeñas
+        Expanded(
+          child: SingleChildScrollView(
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
               ),
-              const SizedBox(height: 16),
+              child: Column(
+                children: [
+                  Text(s.setupChooseFolders,
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center),
+                  const SizedBox(height: 8),
+                  Text(s.setupChooseFoldersDesc,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                      textAlign: TextAlign.center),
+                  const SizedBox(height: 24),
 
-              // Tarjeta de carpeta de música
-              _buildPickFolderCard(
-                icon: Icons.music_note_rounded,
-                color: const Color(0xFF1565C0),
-                bgColor: const Color(0xFFE3F2FD),
-                label: s.setupMusicFolder,
-                chosen: _musicChosen,
-                path: _musicPath,
-                onTap: () => _pickFolder(isMusic: true),
-                s: s,
+                  // Tarjeta de carpeta de videos
+                  _buildPickFolderCard(
+                    icon: Icons.videocam_rounded,
+                    color: const Color(0xFFEF6C00),
+                    bgColor: const Color(0xFFFFF3E0),
+                    label: s.setupVideoFolder,
+                    chosen: _videoChosen,
+                    path: _videoPath,
+                    onTap: () => _pickFolder(isMusic: false),
+                    s: s,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Tarjeta de carpeta de música
+                  _buildPickFolderCard(
+                    icon: Icons.music_note_rounded,
+                    color: const Color(0xFF1565C0),
+                    bgColor: const Color(0xFFE3F2FD),
+                    label: s.setupMusicFolder,
+                    chosen: _musicChosen,
+                    path: _musicPath,
+                    onTap: () => _pickFolder(isMusic: true),
+                    s: s,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
-        const Spacer(),
 
         // Botón empezar: desactivado hasta que ambas carpetas estén elegidas;
         // muestra spinner mientras se migran los archivos al terminar
         Padding(
-          padding: const EdgeInsets.only(bottom: 32),
+          padding: const EdgeInsets.only(bottom: 32, top: 16),
           child: SizedBox(
             width: double.infinity,
             height: 54,
