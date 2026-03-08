@@ -63,12 +63,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// URL actual del WebView de Shorts (para mostrar/ocultar el botón Bajar)
   String _shortsUrl = '';
 
-  /// El botón Bajar solo se muestra cuando la pestaña activa tiene una URL de video
-  bool get _showDownloadButton {
-    if (_currentIndex == 0) return isLikelyYouTubeVideoUrl(_youtubeUrl);
-    if (_currentIndex == 1) return isLikelyYouTubeVideoUrl(_shortsUrl);
-    return false;
-  }
+  /// El botón Bajar siempre se muestra
+  bool get _showDownloadButton => true;
 
   @override
   void initState() {
@@ -271,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // Título dinámico según la pestaña activa
           title: _buildAppBarTitle(context),
           actions: [
-            // Botón Bajar: solo visible cuando hay un video de YouTube activo
+            // Botón Bajar: siempre visible
             if (_showDownloadButton)
               Padding(
                 padding: const EdgeInsets.only(right: 12),

@@ -333,6 +333,7 @@ class _SetupScreenState extends State<SetupScreen> {
             label: s.setupVideoFolder,
             chosen: _videoChosen,
             path: _videoPath,
+            suggestion: 'Downloads/Shema/Videos',
             onTap: () => _pickFolder(isMusic: false),
             s: s,
           ),
@@ -346,6 +347,7 @@ class _SetupScreenState extends State<SetupScreen> {
             label: s.setupMusicFolder,
             chosen: _musicChosen,
             path: _musicPath,
+            suggestion: 'Downloads/Shema/Music',
             onTap: () => _pickFolder(isMusic: true),
             s: s,
           ),
@@ -362,6 +364,7 @@ class _SetupScreenState extends State<SetupScreen> {
     required String label,
     required bool chosen,
     required String path,
+    required String suggestion,
     required VoidCallback onTap,
     required S s,
   }) {
@@ -412,7 +415,7 @@ class _SetupScreenState extends State<SetupScreen> {
                         overflow: TextOverflow.ellipsis,
                       )
                     else
-                      Text(s.setupNotSelected,
+                      Text('${s.setupSuggestedPath}$suggestion',
                           style: TextStyle(
                               fontSize: 12, color: Colors.grey.shade400)),
                   ],
