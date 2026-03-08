@@ -185,6 +185,10 @@ class S {
       : 'Get our music & video\nplayer for FREE';
   String get shemaPlayerNotNow => _isEs ? 'Ahora no' : 'Not now';
   String get shemaPlayerInstallFree => _isEs ? 'Instalar gratis' : 'Install free';
+  String get choosePlayerTitle => _isEs ? '¿Con qué reproducir?' : 'Play with...';
+  String get openInShemaPlayer => _isEs ? 'Reproducir en Shema Player' : 'Play in Shema Player';
+  String get openWithOtherApp => _isEs ? 'Otro reproductor' : 'Other player';
+  String get shemaPlayerNotInstalled => _isEs ? 'No instalado · Obtener gratis' : 'Not installed · Get free';
 
   // ===== SETUP INICIAL =====
   String get setupWelcome => _isEs ? 'Bienvenido a Shema' : 'Welcome to Shema';
@@ -213,6 +217,7 @@ class S {
       ? 'Debes elegir una carpeta para videos y una para música. Ambas son obligatorias.'
       : 'You must choose a folder for videos and one for music. Both are required.';
   String get setupNotSelected => _isEs ? 'No seleccionada' : 'Not selected';
+  String get setupSuggestedPath => _isEs ? 'Sugerencia: ' : 'Suggested: ';
   String get setupSelectFolder => _isEs ? 'Elegir carpeta' : 'Select folder';
   String get setupChooseBothFirst =>
       _isEs ? 'Elige ambas carpetas para continuar' : 'Select both folders to continue';

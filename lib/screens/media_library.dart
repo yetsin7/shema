@@ -124,8 +124,7 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
     }
   }
 
-  /// Abre un archivo: en Shema Player si está instalado, o con el chooser del
-  /// sistema si no lo está. En ese segundo caso muestra un banner promocional.
+  /// Muestra un selector de reproductor y abre el archivo con la opción elegida.
   Future<void> _openMedia(File file) async {
     if (!await file.exists()) {
       if (!mounted) return;
@@ -134,49 +133,40 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
       );
       return;
     }
-
-    final shemaInstalled = await _isShemaPlayerInstalled();
-
-    if (shemaInstalled) {
-      // Reproducir directamente en Shema Player
-      await _channel.invokeMethod('openInShemaPlayer', {'path': file.path});
-      return;
-    }
-
-    // Abrir con el reproductor que el usuario elija
-    final result = await OpenFilex.open(file.path);
     if (!mounted) return;
-
-    if (result.type != ResultType.done) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(S.of(context).cantOpenFile)),
-      );
-      return;
-    }
-
-    // Mostrar banner promocional de Shema Player
-    _showShemaPlayerPromo();
+    _showPlayerPicker(file);
   }
 
-  /// Muestra un bottom sheet promocionando la instalación de Shema Player
-  void _showShemaPlayerPromo() {
-    // Altura del nav bar flotante + safe area para que la card quede por encima
+  /// Muestra el bottom sheet con las dos opciones de reproducción.
+  void _showPlayerPicker(File file) {
     final navOffset = MediaQuery.of(context).viewPadding.bottom + 90.0;
-
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _ShemaPlayerPromoSheet(
-            onInstall: () {
+          _PlayerPickerSheet(
+            onShemaPlayer: () async {
               Navigator.pop(ctx);
-              _channel.invokeMethod('openInShemaPlayer', {'path': ''});
+              final installed = await _isShemaPlayerInstalled();
+              // Si está instalado abre el archivo; si no, abre la Play Store
+              await _channel.invokeMethod(
+                'openInShemaPlayer',
+                {'path': installed ? file.path : ''},
+              );
             },
-            onDismiss: () => Navigator.pop(ctx),
+            onOtherPlayer: () async {
+              Navigator.pop(ctx);
+              final result = await OpenFilex.open(file.path);
+              if (!mounted) return;
+              if (result.type != ResultType.done) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(S.of(context).cantOpenFile)),
+                );
+              }
+            },
           ),
-          // Espacio transparente debajo de la card para elevarla sobre el nav bar
           SizedBox(height: navOffset),
         ],
       ),
@@ -457,160 +447,198 @@ class _MediaLibraryScreenState extends State<MediaLibraryScreen> {
   }
 }
 
-/// Bottom sheet promocional que aparece cuando el usuario reproduce con otra app
-/// porque Shema Player no está instalado.
-class _ShemaPlayerPromoSheet extends StatelessWidget {
-  const _ShemaPlayerPromoSheet({
-    required this.onInstall,
-    required this.onDismiss,
+/// Bottom sheet con dos opciones para reproducir un archivo multimedia.
+///
+/// Muestra "Reproducir en Shema Player" y "Otro reproductor" como opciones.
+class _PlayerPickerSheet extends StatefulWidget {
+  const _PlayerPickerSheet({
+    required this.onShemaPlayer,
+    required this.onOtherPlayer,
   });
 
-  final VoidCallback onInstall;
-  final VoidCallback onDismiss;
+  final VoidCallback onShemaPlayer;
+  final VoidCallback onOtherPlayer;
+
+  @override
+  State<_PlayerPickerSheet> createState() => _PlayerPickerSheetState();
+}
+
+class _PlayerPickerSheetState extends State<_PlayerPickerSheet> {
+  static const _channel = MethodChannel('com.cocibolka.shema/ytdlp');
+  bool? _shemaInstalled;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkInstalled();
+  }
+
+  /// Verifica si Shema Player está instalado para mostrar el subtítulo correcto.
+  Future<void> _checkInstalled() async {
+    try {
+      final installed =
+          await _channel.invokeMethod<bool>('isShemaPlayerInstalled') ?? false;
+      if (mounted) setState(() => _shemaInstalled = installed);
+    } catch (_) {
+      if (mounted) setState(() => _shemaInstalled = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final s = S.of(context);
+    final cardBg = isDark ? ShemaColors.darkCard : Colors.white;
+    final borderColor = isDark ? ShemaColors.darkBorder : ShemaColors.lightBorder;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 24),
       decoration: BoxDecoration(
-        color: isDark ? ShemaColors.darkCard : Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: ShemaColors.seed.withValues(alpha: 0.18),
+            color: Colors.black.withValues(alpha: 0.12),
             blurRadius: 32,
             offset: const Offset(0, -4),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // Pill de arrastre
             Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
+              width: 36, height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 color: isDark ? Colors.white24 : Colors.black12,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
 
-            // Fila: icono + textos
-            Row(
-              children: [
-                // Icono real de Shema Player con sombra
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: ShemaColors.seed.withValues(alpha: 0.35),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Image.asset(
-                      'assets/icon_shema_player.png',
-                      width: 56,
-                      height: 56,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-
-                // Textos
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Shema Player',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        s.shemaPlayerPromoText,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            // Título
+            Text(
+              s.choosePlayerTitle,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurface,
+                letterSpacing: -0.2,
+              ),
             ),
+            const SizedBox(height: 16),
 
-            const SizedBox(height: 20),
+            // Opción 1: Shema Player
+            _PlayerOption(
+              icon: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset('assets/icon_shema_player.png',
+                    width: 44, height: 44, fit: BoxFit.cover),
+              ),
+              title: s.openInShemaPlayer,
+              subtitle: _shemaInstalled == false
+                  ? s.shemaPlayerNotInstalled
+                  : s.shemaPlayerTagline,
+              onTap: widget.onShemaPlayer,
+              accentColor: ShemaColors.seed,
+              isDark: isDark,
+              borderColor: borderColor,
+            ),
+            const SizedBox(height: 10),
 
-            // Botones
-            Row(
-              children: [
-                // Botón descartar
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onDismiss,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      side: BorderSide(
-                        color: isDark ? ShemaColors.darkBorder : ShemaColors.lightBorder,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: Text(
-                      s.shemaPlayerNotNow,
+            // Opción 2: Otro reproductor
+            _PlayerOption(
+              icon: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.apps_rounded,
+                    size: 22,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+              ),
+              title: s.openWithOtherApp,
+              onTap: widget.onOtherPlayer,
+              isDark: isDark,
+              borderColor: borderColor,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Fila de opción de reproductor con icono, título, subtítulo opcional y chevron.
+class _PlayerOption extends StatelessWidget {
+  const _PlayerOption({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    required this.onTap,
+    this.accentColor,
+    required this.isDark,
+    required this.borderColor,
+  });
+
+  final Widget icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final Color? accentColor;
+  final bool isDark;
+  final Color borderColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+          color: accentColor != null
+              ? accentColor!.withValues(alpha: isDark ? 0.10 : 0.06)
+              : Colors.transparent,
+        ),
+        child: Row(
+          children: [
+            icon,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
                       style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-
-                // Botón instalar
-                Expanded(
-                  flex: 2,
-                  child: FilledButton.icon(
-                    onPressed: onInstall,
-                    icon: const Icon(Icons.download_rounded, size: 18),
-                    label: Text(
-                      s.shemaPlayerInstallFree,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: ShemaColors.seed,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.onSurface,
+                        letterSpacing: -0.2,
+                      )),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: accentColor ??
+                              Theme.of(context).colorScheme.onSurfaceVariant,
+                        )),
+                  ],
+                ],
+              ),
             ),
+            Icon(Icons.chevron_right_rounded,
+                size: 20,
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400),
           ],
         ),
       ),
